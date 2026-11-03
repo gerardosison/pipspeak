@@ -1,14 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:xml/xml.dart';
 
 /// Reads paragraph text from a DOCX package locally without uploading it.
 class DocxExtractionService {
-  Future<String> extractFile(String path) async {
+  Future<String> extractBytes(Uint8List bytes) async {
     try {
-      final bytes = await File(path).readAsBytes();
       final package = ZipDecoder().decodeBytes(bytes);
       final document = package.findFile('word/document.xml');
       if (document == null) return '';

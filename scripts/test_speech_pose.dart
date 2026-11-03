@@ -1,3 +1,6 @@
+import 'dart:io';
+// Standalone regression runner intentionally works before pub dependency resolution.
+// ignore_for_file: avoid_relative_lib_imports
 // Offline, dependency-free smoke checks for the actual production calculators.
 // Run: dart scripts/test_speech_pose.dart
 import '../lib/core/models/pose_metrics.dart';
@@ -116,5 +119,5 @@ void main() {
     measure('Um livro', language: 'pt-BR').totalFillers == 0,
     'English hesitation rules must not classify Portuguese articles.',
   );
-  print('PASS: $checks production speech/pose checks.');
+  stdout.writeln('PASS: $checks production speech/pose checks.');
 }

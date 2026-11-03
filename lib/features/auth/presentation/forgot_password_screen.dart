@@ -32,7 +32,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Future<void> _send() async {
     setState(() => _busy = true);
     try {
-      await ref.read(authServiceProvider).sendPasswordReset(_email.text);
+      var email = _email.text.trim();
+      if (email.isNotEmpty && !email.contains('@')) {
+        email = await ref
+                .read(profileRepositoryProvider)
+                .emailForUsername(email) ??
+            '';
+      }
+      await ref.read(authServiceProvider).sendPasswordReset(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -83,7 +90,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "No worries! Enter your email and Pip will send a reset link your way.",
+                    'No worries! Enter your username or email and Pip will send a reset link your way.',
                     textAlign: TextAlign.center,
                     style: text.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -108,8 +115,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       children: [
                         PipTextField(
                           controller: _email,
-                          label: 'Email Address',
-                          hint: 'you@school.edu',
+                          label: 'Username or Email',
+                          hint: 'Enter your username or email',
                           icon: Icons.mail_outline,
                           keyboardType: TextInputType.emailAddress,
                         ),

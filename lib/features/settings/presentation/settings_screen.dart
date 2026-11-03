@@ -19,6 +19,7 @@ class SettingsScreen extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final themeMode = ref.watch(themeModeProvider);
+    final user = ref.watch(currentUserProvider);
 
     return Scaffold(
       appBar: pipAppBar(context, title: 'Settings'),
@@ -26,7 +27,7 @@ class SettingsScreen extends ConsumerWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -171,7 +172,7 @@ class SettingsScreen extends ConsumerWidget {
                         Icons.public,
                         'Language',
                         'Speech pronunciation dialect',
-                        value: 'English (US)',
+                        value: user?.language ?? 'English (US)',
                         onTap: () => context.push(AppRoutes.personalize),
                       ),
                     ],

@@ -48,7 +48,7 @@ class _Backend implements LocalLlmBackend {
   }
 }
 
-LocalLlmService service(_Backend backend) => LocalLlmService.forTesting(
+LocalLlmService _service(_Backend backend) => LocalLlmService.forTesting(
   backend: backend,
   resolveModel: () async => '/verified/model.gguf',
 );
@@ -58,7 +58,7 @@ void main() {
   test('concurrent initializers wait for one native load', () async {
     final loading = Completer<void>();
     final backend = _Backend()..loadAction = () => loading.future;
-    final model = service(backend);
+    final model = _service(backend);
     var secondFinished = false;
     final first = model.initialize();
     final second = model.initialize().then((_) => secondFinished = true);
@@ -75,7 +75,7 @@ void main() {
   test('failed loading resets and can retry', () async {
     final backend = _Backend()
       ..loadAction = () async => throw StateError('bad model');
-    final model = service(backend);
+    final model = _service(backend);
     await expectLater(model.initialize(), throwsStateError);
     expect(model.isLoading, isFalse);
     backend.loadAction = null;
@@ -87,7 +87,7 @@ void main() {
   test('load timeout cannot start another concurrent native load', () async {
     final loading = Completer<void>();
     final backend = _Backend()..loadAction = () => loading.future;
-    final model = service(backend)
+    final model = _service(backend)
       ..loadTimeout = const Duration(milliseconds: 10);
     await expectLater(model.initialize(), throwsA(isA<TimeoutException>()));
     expect(model.isLoading, isTrue);
@@ -102,7 +102,7 @@ void main() {
   test('chat and document inference cannot overlap', () async {
     final firstStream = StreamController<String>();
     final backend = _Backend()..generateAction = () => firstStream.stream;
-    final model = service(backend);
+    final model = _service(backend);
     final first = model.generateResponse('First');
     await tick();
     await tick();
@@ -120,7 +120,7 @@ void main() {
   test('cancel queued request without stopping active request', () async {
     final stream = StreamController<String>();
     final backend = _Backend()..generateAction = () => stream.stream;
-    final model = service(backend);
+    final model = _service(backend);
     final first = model.generateResponse('First');
     await tick();
     await tick();
@@ -147,7 +147,7 @@ void main() {
       final backend = _Backend();
       backend.generateAction = () => stream.stream;
       backend.stopAction = () => stopped.future;
-      final model = service(backend);
+      final model = _service(backend);
       final cancellation = InferenceCancellation();
       final first = model.generateResponse('First', cancellation: cancellation);
       final assertion = expectLater(
@@ -172,7 +172,7 @@ void main() {
   test('stalled generation times out and stops native work', () async {
     final stream = StreamController<String>();
     final backend = _Backend()..generateAction = () => stream.stream;
-    final model = service(backend)
+    final model = _service(backend)
       ..idleTimeout = const Duration(milliseconds: 10);
     await expectLater(
       model.generateResponse('Hello'),
@@ -189,7 +189,7 @@ void main() {
       final backend = _Backend();
       backend.generateAction = () => stream.stream;
       backend.stopAction = () async => throw StateError('native failure');
-      final model = service(backend)
+      final model = _service(backend)
         ..idleTimeout = const Duration(milliseconds: 10);
       await expectLater(
         model.generateResponse('Hello'),
@@ -205,7 +205,7 @@ void main() {
     final backend = _Backend()
       ..generateAction = () => Stream.value('<think>hidden</think>');
     await expectLater(
-      service(backend).generateResponse('Hello'),
+      _service(backend).generateResponse('Hello'),
       throwsStateError,
     );
   });
@@ -236,7 +236,7 @@ void main() {
     () async {
       final backend = _Backend();
       await expectLater(
-        service(backend).generateResponse('語' * 2000),
+        _service(backend).generateResponse('語' * 2000),
         throwsA(isA<ContextLimitException>()),
       );
       expect(backend.loads, 0);

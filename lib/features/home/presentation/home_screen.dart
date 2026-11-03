@@ -19,7 +19,9 @@ class HomeScreen extends StatelessWidget {
     if (location.startsWith('/practice')) return 2;
     if (location == AppRoutes.progress ||
         location == AppRoutes.history ||
-        location == AppRoutes.rehearsalAnalysis) {
+        location == AppRoutes.rehearsalAnalysis ||
+        location.startsWith('/feedback') ||
+        location.startsWith('/reward')) {
       return 3;
     }
     if (location.startsWith('/profile') ||
@@ -39,68 +41,185 @@ class HomeScreen extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 240),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      child: KeyedSubtree(
-        key: ValueKey(location),
-        child: child ?? const HomeLandingScreen(),
-      ),
-    ),
-    bottomNavigationBar: Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.7),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(
-                context,
-              ).colorScheme.shadow.withValues(alpha: 0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 5),
-            ),
-            const BoxShadow(
-              color: Color.fromRGBO(255, 255, 255, 0.55),
-              blurRadius: 2,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 70,
-            child: Row(
-              children: [
-                _destination(context, 0, Icons.home_outlined, 'Home'),
-                _destination(
-                  context,
-                  1,
-                  Icons.description_outlined,
-                  'Documents',
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 1000;
+      final shortWindow = constraints.maxHeight < 480;
+      final extendedRail = constraints.maxWidth >= 1240;
+      final hideNavigation = location == AppRoutes.practiceProcessing;
+      // GoRouter's ShellRoute child is a keyed Navigator. Keep it mounted only
+      // once; AnimatedSwitcher would retain the outgoing Navigator while the
+      // incoming route is mounted, which duplicates its GlobalKey.
+      final routeContent = child ?? const HomeLandingScreen();
+
+      return Scaffold(
+        body: hideNavigation
+            ? routeContent
+            : wide && shortWindow
+            ? Column(
+                children: [
+                  NavigationBar(
+                    height: 72,
+                    labelBehavior:
+                        NavigationDestinationLabelBehavior.onlyShowSelected,
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: (index) =>
+                        context.go(_destinations[index]),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        selectedIcon: Icon(Icons.home_rounded),
+                        label: 'Home',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.description_outlined),
+                        selectedIcon: Icon(Icons.description_rounded),
+                        label: 'Documents',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.mic_none_rounded),
+                        selectedIcon: Icon(Icons.mic_rounded),
+                        label: 'Practice',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.trending_up_rounded),
+                        label: 'Progress',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.person_outline_rounded),
+                        selectedIcon: Icon(Icons.person_rounded),
+                        label: 'Profile',
+                      ),
+                    ],
+                  ),
+                  Expanded(child: routeContent),
+                ],
+              )
+            : wide
+            ? Row(
+                children: [
+                  SafeArea(
+                    child: NavigationRail(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) =>
+                          context.go(_destinations[index]),
+                      extended: extendedRail,
+                      labelType: extendedRail
+                          ? null
+                          : NavigationRailLabelType.all,
+                      minExtendedWidth: 208,
+                      groupAlignment: -0.8,
+                      leading: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 16, 8, 28),
+                        child: extendedRail
+                            ? Text(
+                                'PipSpeak',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              )
+                            : const Icon(Icons.record_voice_over_rounded),
+                      ),
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home_rounded),
+                          label: Text('Home'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.description_outlined),
+                          selectedIcon: Icon(Icons.description_rounded),
+                          label: Text('Documents'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.mic_none_rounded),
+                          selectedIcon: Icon(Icons.mic_rounded),
+                          label: Text('Practice'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.trending_up_rounded),
+                          selectedIcon: Icon(Icons.trending_up_rounded),
+                          label: Text('Progress'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.person_outline_rounded),
+                          selectedIcon: Icon(Icons.person_rounded),
+                          label: Text('Profile'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  Expanded(child: routeContent),
+                ],
+              )
+            : routeContent,
+        bottomNavigationBar: wide || hideNavigation
+            ? null
+            : Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.shadow.withValues(alpha: 0.10),
+                        blurRadius: 18,
+                        offset: const Offset(0, 5),
+                      ),
+                      const BoxShadow(
+                        color: Color.fromRGBO(255, 255, 255, 0.55),
+                        blurRadius: 2,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      height: 70,
+                      child: Row(
+                        children: [
+                          _destination(context, 0, Icons.home_outlined, 'Home'),
+                          _destination(
+                            context,
+                            1,
+                            Icons.description_outlined,
+                            'Documents',
+                          ),
+                          _destination(context, 2, Icons.mic_rounded, 'Practice'),
+                          _destination(
+                            context,
+                            3,
+                            Icons.trending_up_rounded,
+                            'Progress',
+                          ),
+                          _destination(
+                            context,
+                            4,
+                            Icons.person_outline_rounded,
+                            'Profile',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                _destination(context, 2, Icons.mic_rounded, 'Practice'),
-                _destination(context, 3, Icons.trending_up_rounded, 'Progress'),
-                _destination(
-                  context,
-                  4,
-                  Icons.person_outline_rounded,
-                  'Profile',
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
+              ),
+      );
+    },
   );
 
   Widget _destination(
@@ -299,170 +418,206 @@ class _HomeTabView extends ConsumerWidget {
               'with one more practice today.'
         : 'Ready for a small win today? Jump back into practice.';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final practiceCard = Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: dark ? scheme.primaryContainer : AppColors.navy,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1814213D),
+            offset: Offset(4, 5),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.yellow,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              records.isEmpty ? 'FIRST SPEECH' : "TODAY'S PRACTICE",
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Practice for: ${user.goal}',
+            style: TextStyle(
+              color: dark ? scheme.onPrimaryContainer : Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            last == null
+                ? 'Speak for a minute or two. Pip measures pace, filler '
+                      'words and posture on this device.'
+                : 'Last session: ${(last.overallScore ?? 0).round()}/100 '
+                      'score, ${(last.wordsPerMinute ?? 0).round()} wpm, '
+                      '${last.fillerCount ?? 0} fillers. Beat it today!',
+            style: TextStyle(
+              color: (dark ? scheme.onPrimaryContainer : Colors.white)
+                  .withValues(alpha: 0.8),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.yellow,
+              foregroundColor: AppColors.navy,
+            ),
+            onPressed: () => context.go(AppRoutes.practiceSetup),
+            icon: const Icon(Icons.mic_rounded),
+            label: const Text('Start practicing'),
+          ),
+        ],
+      ),
+    );
+    final statsRow = Row(
       children: [
-        Text(
-          '${_greeting(DateTime.now())}, ${user.nickname}!',
-          style: Theme.of(context).textTheme.displaySmall,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          invite,
-          style: TextStyle(
-            fontSize: 15,
-            color: AppColors.secondaryText(context),
+        Expanded(
+          child: _StatCard(
+            title: '${user.streakDays}',
+            label: 'Day streak',
+            icon: Icons.local_fire_department_rounded,
+            color: AppColors.sky,
           ),
         ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ActionChip(
-            avatar: Icon(
-              sync.isError
-                  ? Icons.cloud_off_rounded
-                  : sync.text == 'Synced'
-                  ? Icons.cloud_done_rounded
-                  : Icons.cloud_upload_outlined,
-              size: 18,
-              color: sync.isError ? scheme.error : scheme.primary,
-            ),
-            label: Text(sync.text),
-            onPressed: sync.canRetry
-                ? () => ref.read(syncControllerProvider.notifier).syncNow()
-                : null,
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Practice invitation card
-        Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: dark ? scheme.primaryContainer : AppColors.navy,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1814213D),
-                offset: Offset(4, 5),
-                blurRadius: 0,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.yellow,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  records.isEmpty ? 'FIRST SPEECH' : "TODAY'S PRACTICE",
-                  style: const TextStyle(
-                    color: AppColors.navy,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Practice for: ${user.goal}',
-                style: TextStyle(
-                  color: dark ? scheme.onPrimaryContainer : Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                last == null
-                    ? 'Speak for a minute or two. Pip measures pace, filler '
-                          'words and posture on this device.'
-                    : 'Last session: ${(last.overallScore ?? 0).round()}/100 '
-                          'score, ${(last.wordsPerMinute ?? 0).round()} wpm, '
-                          '${last.fillerCount ?? 0} fillers. Beat it today!',
-                style: TextStyle(
-                  color: (dark ? scheme.onPrimaryContainer : Colors.white)
-                      .withValues(alpha: 0.8),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.yellow,
-                  foregroundColor: AppColors.navy,
-                ),
-                onPressed: () => context.go(AppRoutes.practiceSetup),
-                icon: const Icon(Icons.mic_rounded),
-                label: const Text('Start practicing'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                title: '${user.streakDays}',
-                label: 'Day streak',
-                icon: Icons.local_fire_department_rounded,
-                color: AppColors.sky,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _StatCard(
-                title: '${user.totalSessions}',
-                label: 'Sessions completed',
-                icon: Icons.check_circle_outline_rounded,
-                color: AppColors.mint,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.military_tech_rounded),
-            title: Text('Level ${level.level} · ${level.totalStars} stars'),
-            subtitle: Text(
-              '${level.starsRemaining} more star(s) to Level ${level.level + 1}',
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.go(AppRoutes.progress),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('Analyze a speech script'),
-            subtitle: const Text('PDF, DOCX or TXT, processed on this device.'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.push(AppRoutes.documentUpload),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.offline_bolt_rounded),
-            title: const Text('Ask your local AI coach'),
-            subtitle: const Text(
-              'Chat with Qwen on this device, even offline.',
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.go(AppRoutes.aiCoach),
+        const SizedBox(width: 14),
+        Expanded(
+          child: _StatCard(
+            title: '${user.totalSessions}',
+            label: 'Sessions completed',
+            icon: Icons.check_circle_outline_rounded,
+            color: AppColors.mint,
           ),
         ),
       ],
+    );
+    final progressCard = Card(
+      child: ListTile(
+        leading: const Icon(Icons.military_tech_rounded),
+        title: Text('Level ${level.level} · ${level.totalStars} stars'),
+        subtitle: Text(
+          '${level.starsRemaining} more star(s) to Level ${level.level + 1}',
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.go(AppRoutes.progress),
+      ),
+    );
+    final documentsCard = Card(
+      child: ListTile(
+        leading: const Icon(Icons.description_outlined),
+        title: const Text('Analyze a speech script'),
+        subtitle: const Text('PDF, DOCX or TXT, processed on this device.'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push(AppRoutes.documentUpload),
+      ),
+    );
+    final coachCard = Card(
+      child: ListTile(
+        leading: const Icon(Icons.offline_bolt_rounded),
+        title: const Text('Ask your local AI coach'),
+        subtitle: const Text('Chat with Qwen on this device, even offline.'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.go(AppRoutes.aiCoach),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${_greeting(DateTime.now())}, ${user.nickname}!',
+              style: Theme.of(context).textTheme.displaySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              invite,
+              style: TextStyle(
+                fontSize: 15,
+                color: AppColors.secondaryText(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ActionChip(
+                avatar: Icon(
+                  sync.isError
+                      ? Icons.cloud_off_rounded
+                      : sync.text == 'Synced'
+                      ? Icons.cloud_done_rounded
+                      : Icons.cloud_upload_outlined,
+                  size: 18,
+                  color: sync.isError ? scheme.error : scheme.primary,
+                ),
+                label: Text(sync.text),
+                onPressed: sync.canRetry
+                    ? () => ref.read(syncControllerProvider.notifier).syncNow()
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        practiceCard,
+                        const SizedBox(height: 18),
+                        statsRow,
+                        const SizedBox(height: 8),
+                        progressCard,
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 22),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        documentsCard,
+                        const SizedBox(height: 12),
+                        coachCard,
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              practiceCard,
+              const SizedBox(height: 20),
+              statsRow,
+              const SizedBox(height: 14),
+              progressCard,
+              documentsCard,
+              coachCard,
+            ],
+          ],
+        );
+      },
     );
   }
 }

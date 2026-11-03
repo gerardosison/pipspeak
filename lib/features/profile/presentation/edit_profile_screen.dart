@@ -16,8 +16,8 @@ import '../../../core/widgets/pip_cards.dart';
 import '../../../core/widgets/pip_fields.dart';
 import '../../../core/widgets/pip_misc.dart';
 
-/// Edit Profile — avatar, name/nickname/email fields, streak & sync
-/// cards, save/cancel (Stitch `edit_profile`).
+/// Edit Profile — avatar, name and nickname fields, account identity,
+/// save/cancel (Stitch `edit_profile`).
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -28,7 +28,6 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _name;
   late final TextEditingController _nickname;
-  late final TextEditingController _email;
 
   @override
   void initState() {
@@ -36,15 +35,20 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final u = ref.read(currentUserProvider) ?? const UserProfile.placeholder();
     _name = TextEditingController(text: u.name);
     _nickname = TextEditingController(text: u.nickname);
-    _email = TextEditingController(text: u.school);
+    _name.addListener(_refreshAvatar);
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _nickname, _email]) {
+    _name.removeListener(_refreshAvatar);
+    for (final c in [_name, _nickname]) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  void _refreshAvatar() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _save(UserProfile user) async {
@@ -59,7 +63,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             language: user.language,
             practicePurpose: user.goal,
             onboardingComplete: true,
-            school: _email.text,
           );
       ref.read(syncControllerProvider.notifier).syncNow();
       if (mounted) context.pop();
@@ -107,67 +110,79 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 720),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
                 // Avatar
                 Center(
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 104,
-                        height: 104,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.secondaryFixed.withValues(
-                            alpha: 0.5,
-                          ),
-                          border: Border.all(
-                            color: scheme.secondaryContainer,
-                            width: 3,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            _name.text.isEmpty
-                                ? '?'
-                                : _name.text[0].toUpperCase(),
-                            style: text.displayLarge?.copyWith(
-                              fontSize: 40,
-                              color: scheme.primary,
+                  child: Semantics(
+                    button: !kIsWeb,
+                    label: kIsWeb ? null : 'Change profile photo',
+                    child: GestureDetector(
+                      onTap: kIsWeb ? null : () => _pickPhoto(user),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 104,
+                            height: 104,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.secondaryFixed.withValues(
+                                alpha: 0.5,
+                              ),
+                              border: Border.all(
+                                color: scheme.secondaryContainer,
+                                width: 3,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: !kIsWeb &&
+                                      user.photoPath?.isNotEmpty == true
+                                  ? Image.file(
+                                      File(user.photoPath!),
+                                      width: 104,
+                                      height: 104,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          _avatarInitial(text, scheme),
+                                    )
+                                  : _avatarInitial(text, scheme),
                             ),
                           ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: scheme.primary,
-                            border: Border.all(
-                              color: scheme.surfaceContainerLowest,
-                              width: 2,
+                          if (!kIsWeb)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: scheme.primary,
+                                  border: Border.all(
+                                    color: scheme.surfaceContainerLowest,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.photo_camera,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.photo_camera,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Tap to change avatar',
+                    kIsWeb
+                        ? 'Profile photos are available in the installed app'
+                        : 'Tap to change avatar',
                     style: text.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -192,20 +207,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         controller: _nickname,
                       ),
                       const SizedBox(height: 14),
-                      PipTextField(
-                        label: 'School (optional)',
-                        hint: 'e.g. Riverside High',
-                        icon: Icons.school_outlined,
-                        controller: _email,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Signed in as ${user.email}. Your email and username '
-                        'are tied to your account and cannot be edited here.',
-                        style: text.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
+                      if (user.email.isNotEmpty || user.username.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          [
+                            if (user.email.isNotEmpty) user.email,
+                            if (user.username.isNotEmpty)
+                              '@${user.username}',
+                          ].join(' • '),
+                          style: text.bodyMedium?.copyWith(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Email and username are linked to your account and '
+                          'cannot be edited here.',
+                          style: text.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -229,6 +252,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _avatarInitial(TextTheme text, ColorScheme scheme) {
+    final name = _name.text.trim();
+    return Center(
+      child: Text(
+        name.isEmpty ? '?' : name[0].toUpperCase(),
+        style: text.displayLarge?.copyWith(fontSize: 40, color: scheme.primary),
       ),
     );
   }

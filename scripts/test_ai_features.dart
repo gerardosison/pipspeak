@@ -1,3 +1,6 @@
+import 'dart:io';
+// Standalone regression runner intentionally works before pub dependency resolution.
+// ignore_for_file: avoid_relative_lib_imports
 // Runs production text-analysis and feedback code without Flutter or model weights.
 // dart --disable-dart-dev scripts/test_ai_features.dart
 import 'dart:convert';
@@ -15,8 +18,9 @@ class FailingModel implements LocalLlmService {
   int calls = 0;
   @override
   dynamic noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #buildCoachingPrompt)
+    if (invocation.memberName == #buildCoachingPrompt) {
       return 'Measured coaching';
+    }
     if (invocation.memberName == #generateResponse) {
       calls++;
       return Future<String>.error(StateError('Native failed'));
@@ -27,7 +31,7 @@ class FailingModel implements LocalLlmService {
 
 void check(bool result, String name) {
   if (!result) throw StateError(name);
-  print('PASS $name');
+  stdout.writeln('PASS $name');
 }
 
 Future<void> main() async {
@@ -72,8 +76,9 @@ Future<void> main() async {
   check(incompleteRejected, 'truncated output rejected');
 
   final failing = FailingModel(true);
-  final report = await RuleBasedFeedbackEngine(llmService: failing)
-      .generate(speech: SpeechMetrics.sample(), speakingGoal: 'Presentation');
+  final report = await RuleBasedFeedbackEngine(
+    llmService: failing,
+  ).generate(speech: SpeechMetrics.sample(), speakingGoal: 'Presentation');
   check(
     report.overallScore > 0 &&
         report.evidenceList.isNotEmpty &&
@@ -82,8 +87,9 @@ Future<void> main() async {
     'native inference failure preserves measured feedback',
   );
   final unloaded = FailingModel(false);
-  final baseline = await RuleBasedFeedbackEngine(llmService: unloaded)
-      .generate(speech: SpeechMetrics.sample(), speakingGoal: 'Presentation');
+  final baseline = await RuleBasedFeedbackEngine(
+    llmService: unloaded,
+  ).generate(speech: SpeechMetrics.sample(), speakingGoal: 'Presentation');
   check(
     baseline.llmResponse == null && unloaded.calls == 0,
     'unloaded model not reported as AI output',
@@ -112,5 +118,5 @@ Future<void> main() async {
         ),
     'pose feedback describes image-relative movement',
   );
-  print('10 AI feature checks passed.');
+  stdout.writeln('10 AI feature checks passed.');
 }

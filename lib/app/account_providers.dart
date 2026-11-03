@@ -109,7 +109,7 @@ final pendingSyncCountProvider = StreamProvider<int>((ref) {
 final levelStatusProvider = Provider<LevelStatus>((ref) {
   final total = ref
       .watch(genuineRecordsProvider)
-      .fold<int>(0, (sum, r) => sum + r.starsEarned);
+      .fold<int>(0, (total, r) => total + r.starsEarned);
   return LevelService.fromTotalStars(total);
 });
 

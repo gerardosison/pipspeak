@@ -27,14 +27,27 @@ class SessionHistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: pipAppBar(context, title: 'Session History'),
       body: history.isEmpty
-          ? const PipEmptyState(
+          ? PipEmptyState(
               title: 'No sessions yet',
               message:
                   'Finish your first rehearsal and it will show up here.',
-              asset: PipAsset.pacing)
-          : PipPageBody(children: [
-              for (final s in history) _row(context, s, text, scheme),
-            ]),
+              asset: PipAsset.pacing,
+              actionLabel: 'Start practicing',
+              actionIcon: Icons.mic_rounded,
+              onAction: () => context.go(AppRoutes.practiceSetup),
+            )
+          : PipPageBody(
+              maxWidth: 1120,
+              children: [
+                PipResponsiveGrid(
+                  minItemWidth: 420,
+                  maxColumns: 2,
+                  children: [
+                    for (final s in history) _row(context, s, text, scheme),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

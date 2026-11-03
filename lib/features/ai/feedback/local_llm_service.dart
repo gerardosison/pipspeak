@@ -49,15 +49,30 @@ class LocalLlmService {
     : _backend = createLocalLlmBackend(),
       _resolveModel = resolveDefaultModel;
 
-  LocalLlmService.forTesting({
+  factory LocalLlmService.forTesting({
     required LocalLlmBackend backend,
     required Future<String> Function() resolveModel,
-    this.loadTimeout = const Duration(minutes: 2),
-    this.generationTimeout = const Duration(minutes: 2),
-    this.idleTimeout = const Duration(seconds: 45),
-    this.stopTimeout = const Duration(seconds: 5),
-  }) : _backend = backend,
-       _resolveModel = resolveModel;
+    Duration loadTimeout = const Duration(minutes: 2),
+    Duration generationTimeout = const Duration(minutes: 2),
+    Duration idleTimeout = const Duration(seconds: 45),
+    Duration stopTimeout = const Duration(seconds: 5),
+  }) => LocalLlmService._testing(
+    backend,
+    resolveModel,
+    loadTimeout,
+    generationTimeout,
+    idleTimeout,
+    stopTimeout,
+  );
+
+  LocalLlmService._testing(
+    this._backend,
+    this._resolveModel,
+    this.loadTimeout,
+    this.generationTimeout,
+    this.idleTimeout,
+    this.stopTimeout,
+  );
 
   static const contextSize = 2048;
   static const _safetyTokens = 128;
@@ -80,6 +95,8 @@ class LocalLlmService {
   bool _disposed = false;
   bool _quarantined = false;
   String _lastError = '';
+
+  bool get isSupported => supportsLocalLlmRuntime;
 
   bool get isLoaded => _isLoaded && !_disposed && !_quarantined;
   bool get isLoading => _initializing != null;

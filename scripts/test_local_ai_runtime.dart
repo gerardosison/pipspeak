@@ -1,3 +1,5 @@
+// Standalone regression runner intentionally works before pub dependency resolution.
+// ignore_for_file: avoid_relative_lib_imports
 // Execute without pub or model weights:
 // dart --disable-dart-dev scripts/test_local_ai_runtime.dart
 // Exercises the actual production coordinator with an injected native boundary.

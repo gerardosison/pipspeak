@@ -5,6 +5,9 @@ import '../model_management/model_file_resolver.dart';
 import 'local_llm_backend.dart';
 import 'local_llm_platform_stub.dart' as unsupported;
 
+bool get supportsLocalLlmRuntime =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
 LocalLlmBackend createLocalLlmBackend() =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.android
     ? _PluginBackend()
@@ -20,23 +23,22 @@ class _PluginBackend implements LocalLlmBackend {
     required int contextSize,
     required int gpuLayers,
   }) async {
-    // Plugin releases may complete with void or a success boolean. A false
-    // result must not mark the shared runtime as loaded.
-    await _verifyLoad(
-      _controller.loadModel(
-        modelPath: path,
-        threads: threads,
-        contextSize: contextSize,
-        gpuLayers: gpuLayers,
-      ),
+    // Flutter hot restart can retain the Android model while recreating Dart.
+    // Drain old native work before reusing the verified, packaged model context.
+    if (await _controller.isModelLoaded()) {
+      await _controller.stop();
+      await _controller.clearContext();
+      return;
+    }
+    await _controller.loadModel(
+      modelPath: path,
+      threads: threads,
+      contextSize: contextSize,
+      gpuLayers: gpuLayers,
     );
-  }
-
-  Future<void> _verifyLoad(Future<dynamic> loading) async {
-    final result = await loading;
-    if (result == false) {
+    if (!await _controller.isModelLoaded()) {
       throw StateError(
-        'The native Qwen runtime rejected the model. Check device support and model preparation.',
+        'The native Qwen runtime did not load the verified model.',
       );
     }
   }

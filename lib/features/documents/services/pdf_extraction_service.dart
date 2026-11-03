@@ -1,11 +1,14 @@
 
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' show Image, ImageByteFormat;
 
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
+
+import 'pdf_ocr_backend_unsupported.dart'
+    if (dart.library.io) 'pdf_ocr_backend_mlkit.dart' as ocr;
 
 class PdfExtractionResult {
   const PdfExtractionResult({
@@ -26,8 +29,21 @@ class PdfExtractionService {
   static const int _minimumSelectableTextLength = 40;
 
   Future<PdfExtractionResult> extractFile(String path) async {
-    final document = await PdfDocument.openFile(path);
-    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    final bytes = await File(path).readAsBytes();
+    return extractBytes(bytes, sourceName: p.basename(path));
+  }
+
+  Future<PdfExtractionResult> extractBytes(
+    Uint8List bytes, {
+    String sourceName = 'uploaded.pdf',
+  }) async {
+    final document = await PdfDocument.openData(
+      bytes,
+      sourceName: sourceName,
+    );
+    // Native ML Kit OCR is optional. On web and desktop, pdfrx still extracts
+    // selectable PDF text without loading an unsupported OCR plugin.
+    final recognizer = ocr.createPdfOcrSession();
     final pageTexts = <String>[];
     var ocrPageCount = 0;
 
@@ -35,6 +51,11 @@ class PdfExtractionService {
       for (final page in document.pages) {
         final selectableText = (await page.loadText())?.fullText.trim() ?? '';
         if (selectableText.length >= _minimumSelectableTextLength) {
+          pageTexts.add(selectableText);
+          continue;
+        }
+
+        if (recognizer == null) {
           pageTexts.add(selectableText);
           continue;
         }
@@ -72,10 +93,7 @@ class PdfExtractionService {
             pngData.buffer.asUint8List(pngData.offsetInBytes, pngData.lengthInBytes),
             flush: true,
           );
-          final recognized = await recognizer.processImage(
-            InputImage.fromFilePath(pngFile.path),
-          );
-          final ocrText = recognized.text.trim();
+          final ocrText = (await recognizer.recognizeFile(pngFile.path)).trim();
           ocrPageCount++;
           pageTexts.add(ocrText.length > selectableText.length ? ocrText : selectableText);
         } finally {
@@ -91,7 +109,7 @@ class PdfExtractionService {
         ocrPageCount: ocrPageCount,
       );
     } finally {
-      await recognizer.close();
+      await recognizer?.close();
       await document.dispose();
     }
   }

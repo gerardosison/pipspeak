@@ -86,8 +86,8 @@ class SyncController extends StateNotifier<SyncState>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
-    _foreground = lifecycle == AppLifecycleState.resumed;
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
     if (_foreground) syncNow();
   }
 

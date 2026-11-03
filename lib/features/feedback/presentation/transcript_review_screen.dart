@@ -156,7 +156,10 @@ class _TranscriptReviewScreenState extends State<TranscriptReviewScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-          child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 920),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
@@ -466,6 +469,8 @@ class _TranscriptReviewScreenState extends State<TranscriptReviewScreen> {
                 ),
               ],
             ],
+              ),
+            ),
           ),
         ),
       ),

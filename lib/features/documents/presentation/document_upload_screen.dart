@@ -1,8 +1,8 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,19 +11,17 @@ import '../../../app/app_router.dart';
 import '../../../app/app_providers.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
-import '../../../core/errors/analysis_failure.dart';
-import '../../ai/feedback/local_llm_service.dart';
-import '../services/local_document_service.dart';
 import '../../../core/widgets/pip_buttons.dart';
 import '../../../core/widgets/pip_cards.dart';
 import '../../../core/widgets/pip_chips.dart';
 import '../../../core/widgets/pip_fields.dart';
 import '../../../core/widgets/pip_mascot.dart';
 import '../../../core/widgets/pip_misc.dart';
+import 'document_processing_screen.dart';
 
 /// Document Upload — dashed drop zone, purpose chips, target pace,
 /// analyze CTA (Stitch `document_upload_speech_script`).
-/// Parsing and feedback run locally via DocumentService. The unreadable-file error
+/// Extraction and feedback run locally through DocumentService. The unreadable-file error
 /// (Stitch `document_upload_unreadable_file_error`) is a state of this
 /// screen, not a separate route.
 class DocumentUploadScreen extends ConsumerStatefulWidget {
@@ -36,35 +34,32 @@ class DocumentUploadScreen extends ConsumerStatefulWidget {
 
 class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   String? _fileName;
-  String? _filePath;
+  PlatformFile? _file;
   int _targetWpm = 140;
   bool _busy = false;
-  InferenceCancellation? _request;
   bool _unreadable = false;
   final _pasted = TextEditingController();
 
   @override
   void dispose() {
-    _request?.cancel();
     _pasted.dispose();
     super.dispose();
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'docx', 'txt'],
     );
-    final file = result.isEmpty ? null : result.single;
-    if (file?.path == null || !mounted) return;
+    if (file == null || !mounted) return;
     setState(() {
-      _fileName = file!.name;
-      _filePath = file.path;
+      _file = file;
+      _fileName = file.name;
       _unreadable = false;
     });
   }
 
-  /// Analyzes pasted text by writing it to a local .txt file.
+  /// Keeps pasted text in memory and sends it through the same local pipeline.
   Future<void> _analyzePasted() async {
     final text = _pasted.text.trim();
     if (text.split(RegExp(r'\s+')).length < 20) {
@@ -75,55 +70,52 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
       );
       return;
     }
-    final dir = await getTemporaryDirectory();
-    final file = File(p.join(dir.path, 'pasted_script.txt'));
-    await file.writeAsString(text);
-    if (!mounted) return;
-    setState(() {
-      _unreadable = false;
-      _fileName = 'Pasted script';
-      _filePath = file.path;
-    });
-    await _analyze();
+    final bytes = Uint8List.fromList(utf8.encode(text));
+    await _runAnalysis(
+      DocumentAnalysisRequest(
+        fileName: 'pasted_script.txt',
+        readBytes: () async => bytes,
+        readLength: () async => bytes.length,
+      ),
+    );
   }
 
   Future<void> _analyze() async {
-    if (_filePath == null || _busy) return;
-    final accountId = ref.read(currentUidProvider);
-    final request = InferenceCancellation();
-    _request = request;
-    setState(() => _busy = true);
+    final file = _file;
+    if (file == null) return;
+    await _runAnalysis(
+      DocumentAnalysisRequest(
+        fileName: file.name,
+        readBytes: file.readAsBytes,
+        readLength: file.length,
+      ),
+    );
+  }
+
+  Future<void> _runAnalysis(DocumentAnalysisRequest request) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _unreadable = false;
+      _fileName = request.fileName;
+    });
+    DocumentProcessingOutcome? outcome;
     try {
-      final service = ref.read(documentServiceProvider);
-      var result = service is LocalDocumentService
-          ? await service.analyze(_filePath!, cancellation: request)
-          : await service.analyze(_filePath!);
-      if (!mounted || request.isCancelled) return;
-      final uid = ref.read(currentUidProvider);
-      if (uid != accountId) {
-        throw StateError('Account changed. Please analyze the document again.');
-      }
-      if (uid != null) {
-        result = await ref.read(documentRepositoryProvider).save(uid, result);
-      }
-      if (!mounted ||
-          request.isCancelled ||
-          ref.read(currentUidProvider) != accountId) {
-        return;
-      }
-      ref.read(lastDocAnalysisProvider.notifier).state = result;
-      context.push(AppRoutes.scriptAnalysis);
-    } on DocumentUnreadableException {
-      if (mounted) setState(() => _unreadable = true);
-    } catch (error) {
-      if (mounted && !request.isCancelled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not analyze the file: $error')),
-        );
-      }
+      outcome = await context.push<DocumentProcessingOutcome>(
+        AppRoutes.documentProcessing,
+        extra: request,
+      );
     } finally {
-      if (identical(_request, request)) _request = null;
       if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+    setState(() {
+      _unreadable = outcome == DocumentProcessingOutcome.unreadable;
+    });
+    if (outcome == DocumentProcessingOutcome.failed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The script analysis did not finish.')),
+      );
     }
   }
 
@@ -136,12 +128,12 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
     if (_unreadable) return _buildUnreadable(context, text, scheme);
 
     return Scaffold(
-      appBar: pipAppBar(context, title: 'Upload Script'),
+      appBar: pipAppBar(context, title: 'Upload Script', showBack: false),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -150,7 +142,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   button: true,
                   label: 'Choose a file to upload',
                   child: InkWell(
-                    onTap: _busy ? null : _pickFile,
+                    onTap: _pickFile,
                     borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                     child: CustomPaint(
                       painter: _DashedBorderPainter(
@@ -191,7 +183,9 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                             const SizedBox(height: 4),
                             Text(
                               _fileName == null
-                                  ? 'PDF, DOCX or TXT — analyzed on-device'
+                                  ? kIsWeb
+                                        ? 'PDF, DOCX or TXT — text is read locally; AI feedback requires Android'
+                                        : 'PDF, DOCX or TXT — analyzed with local Qwen'
                                   : 'Tap to change file',
                               style: text.bodySmall?.copyWith(
                                 color: scheme.onSurfaceVariant,
@@ -241,7 +235,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                           icon: const Icon(Icons.close),
                           onPressed: () => setState(() {
                             _fileName = null;
-                            _filePath = null;
+                            _file = null;
                           }),
                         ),
                       ],
@@ -316,12 +310,6 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   icon: _busy ? null : Icons.auto_awesome,
                   onPressed: (_fileName == null || _busy) ? null : _analyze,
                 ),
-                if (_busy)
-                  TextButton.icon(
-                    onPressed: () => _request?.cancel(),
-                    icon: const Icon(Icons.stop_rounded),
-                    label: const Text('Cancel analysis'),
-                  ),
               ],
             ),
           ),
@@ -338,8 +326,9 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
     ColorScheme scheme,
   ) {
     return Scaffold(
-      appBar: pipAppBar(context, title: 'Upload Script'),
+      appBar: pipAppBar(context, title: 'Upload Script', showBack: false),
       body: PipPageBody(
+        maxWidth: 760,
         children: [
           const Center(
             child: PipMascot(asset: PipAsset.sad, size: 130, showBadge: false),
@@ -352,8 +341,8 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'It looks like a scanned image or a corrupted document, '
-            'so Pip couldn\'t pull out the text.',
+            'This file has no selectable text or may be damaged, '
+            'so Pip couldn\'t pull out the script.',
             textAlign: TextAlign.center,
             style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -369,8 +358,8 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                 ),
                 const SizedBox(height: 10),
                 for (final tip in [
-                  'Export the file as a real PDF (not a photo of one)',
-                  'DOCX and TXT files work best',
+                  'For scanned PDFs, choose a copy with selectable text',
+                  'DOCX and TXT files work best in the browser',
                   'Make sure the file isn\'t password protected',
                 ])
                   Padding(
@@ -419,6 +408,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
               setState(() {
                 _unreadable = false;
                 _fileName = null;
+                _file = null;
               });
             },
           ),

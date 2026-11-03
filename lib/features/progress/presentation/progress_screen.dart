@@ -52,7 +52,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 1120),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -124,117 +124,176 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     ColorScheme scheme,
   ) {
     final needed = LevelProgress.starsNeeded(user.level);
-    return Column(
-      children: [
-        // Level hero
-        PipCard(
-          child: Column(
+    final levelCard = PipCard(
+      child: Column(
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  const PipMascot(
-                    asset: PipAsset.stars,
-                    size: 88,
-                    showBadge: false,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              const PipMascot(
+                asset: PipAsset.stars,
+                size: 88,
+                showBadge: false,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Level ${user.level} Orator',
+                      style: text.headlineMedium?.copyWith(
+                        color: scheme.primary,
+                      ),
+                    ),
+                    Text(
+                      'Practice Hero rank',
+                      style: text.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Text(
-                          'Level ${user.level} Orator',
-                          style: text.headlineMedium?.copyWith(
-                            color: scheme.primary,
-                          ),
+                        StarChip(
+                          label:
+                              '${ref.watch(levelStatusProvider).totalStars} stars',
                         ),
-                        Text(
-                          'Practice Hero rank',
-                          style: text.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            StarChip(
-                              label:
-                                  '${ref.watch(levelStatusProvider).totalStars} stars',
-                            ),
-                            const SizedBox(width: 8),
-                            PipBadge(
-                              label: '${user.streakDays}d streak',
-                              icon: Icons.local_fire_department,
-                              background: AppColors.tertiaryFixed,
-                              foreground: AppColors.onTertiaryFixed,
-                            ),
-                          ],
+                        PipBadge(
+                          label: '${user.streakDays}d streak',
+                          icon: Icons.local_fire_department,
+                          background: AppColors.tertiaryFixed,
+                          foreground: AppColors.onTertiaryFixed,
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              LevelProgress(level: user.level, stars: user.stars),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${needed - user.stars} more star(s) to Level ${user.level + 1}. '
-                  'Level n needs 10 × n stars; your first speech per goal is a '
-                  'baseline, and later speeches earn 1–3 stars for improving on '
-                  'your recent average score (+2, +5, +10 points).',
-                  style: text.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-
-        // Badges
+          const SizedBox(height: 14),
+          LevelProgress(level: user.level, stars: user.stars),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${needed - user.stars} more star(s) to Level ${user.level + 1}. '
+              'Level n needs 10 × n stars; your first speech per goal is a '
+              'baseline, and later speeches earn 1–3 stars for improving on '
+              'your recent average score (+2, +5, +10 points).',
+              style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+    final achievements = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         const SectionHeader(title: 'Achievements'),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _badge('First Speech', Icons.mic, true),
-            _badge('3-Day Streak', Icons.local_fire_department, true),
-            _badge('Pace Pro', Icons.speed, true),
+            _badge('First Speech', Icons.mic, user.totalSessions > 0),
+            _badge(
+              '3-Day Streak',
+              Icons.local_fire_department,
+              user.streakDays >= 3,
+            ),
+            _badge(
+              'Pace Pro',
+              Icons.speed,
+              history.any((s) => s.avgWpm >= 130 && s.avgWpm <= 150),
+            ),
             _badge(
               'Filler Slayer',
               Icons.bubble_chart,
-              ref.watch(levelStatusProvider).totalStars >= 5,
+              history.any((s) => s.fillerCount == 0),
             ),
-            _badge('Crowd Favorite', Icons.groups, false),
-            _badge('Level 5', Icons.military_tech, false),
+            _badge('Level 5', Icons.military_tech, user.level >= 5),
           ],
         ),
-        const SizedBox(height: 16),
-
-        const SectionHeader(title: 'Recent practice'),
-        const SizedBox(height: 8),
-        for (final s in history.take(2))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _historyCard(s, text, scheme),
-          ),
       ],
+    );
+    final recentPractice = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          title: 'Recent practice',
+          action: history.isEmpty ? null : 'View all',
+          onAction: () => context.push(AppRoutes.history),
+        ),
+        const SizedBox(height: 8),
+        if (history.isEmpty)
+          PipEmptyState(
+            title: 'No practice sessions yet',
+            message:
+                'Your first rehearsal will add pace, filler word, and posture insights here.',
+            asset: PipAsset.pacing,
+            actionLabel: 'Start practicing',
+            actionIcon: Icons.mic_rounded,
+            onAction: () => context.go(AppRoutes.practiceSetup),
+          )
+        else
+          for (final s in history.take(2))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _historyCard(s, text, scheme),
+            ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) {
+          return Column(
+            children: [
+              levelCard,
+              const SizedBox(height: 16),
+              achievements,
+              const SizedBox(height: 16),
+              recentPractice,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  levelCard,
+                  const SizedBox(height: 20),
+                  achievements,
+                ],
+              ),
+            ),
+            const SizedBox(width: 20),
+            Expanded(flex: 2, child: recentPractice),
+          ],
+        );
+      },
     );
   }
 
   // ------------------------------------------------- progress_growth_1
   Widget _milestonesView(UserProfile user, TextTheme text, ColorScheme scheme) {
     final milestones = [
-      ('First rehearsal', 'Complete your first practice', true),
-      ('Earn a star', 'Improve on a previous speech', user.stars > 0),
+      ('First rehearsal', 'Complete your first practice', user.totalSessions > 0),
+      (
+        'Earn a star',
+        'Improve on a previous speech',
+        ref.watch(levelStatusProvider).totalStars > 0,
+      ),
       ('10 speeches', 'Reach double digits', user.totalSessions >= 10),
       ('Week-long streak', '7 days in a row', user.streakDays >= 7),
-      ('Level 5 Orator', 'Bank 50 total stars', false),
+      ('Level 5 Orator', 'Reach 100 total stars', user.level >= 5),
     ];
     return Column(
       children: [
@@ -261,7 +320,9 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'You\'re on a roll!',
+                      user.totalSessions == 0
+                          ? 'Your journey starts here'
+                          : 'You\'re on a roll!',
                       style: text.headlineSmall?.copyWith(color: Colors.white),
                     ),
                     const SizedBox(height: 4),
@@ -281,10 +342,13 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         const SizedBox(height: 16),
         const SectionHeader(title: 'Milestones'),
         const SizedBox(height: 8),
-        for (var i = 0; i < milestones.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: PipCard(
+        PipResponsiveGrid(
+          minItemWidth: 420,
+          maxColumns: 2,
+          runSpacing: 10,
+          children: [
+            for (var i = 0; i < milestones.length; i++)
+              PipCard(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
@@ -331,7 +395,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 ],
               ),
             ),
-          ),
+          ],
+        ),
       ],
     );
   }
@@ -414,12 +479,16 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 Text(
                   '${DateFormat.MMMd().format(s.date)} • '
                   '$mins:${secs.toString().padLeft(2, '0')} • ${s.avgWpm} wpm',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: text.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
                     if (s.improved)
                       const MintBadge(
@@ -432,7 +501,6 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         background: scheme.surfaceContainerHigh,
                         foreground: scheme.onSurfaceVariant,
                       ),
-                    const SizedBox(width: 6),
                     if (s.starsEarned > 0) StarChip(label: '+${s.starsEarned}'),
                   ],
                 ),

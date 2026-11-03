@@ -1,5 +1,7 @@
 import 'local_llm_backend.dart';
 
+const bool supportsLocalLlmRuntime = false;
+
 LocalLlmBackend createLocalLlmBackend() => _UnsupportedBackend();
 Future<String> resolveDefaultModel() async => throw UnsupportedError(
   'Local Qwen inference requires a supported 64-bit Android device.',

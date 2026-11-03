@@ -17,7 +17,7 @@ class PrivacyScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: pipAppBar(context, title: 'Privacy & Data'),
-      body: PipPageBody(children: [
+      body: PipPageBody(maxWidth: 760, children: [
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),

@@ -9,6 +9,7 @@ import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/documents/presentation/document_analysis_screen.dart';
+import '../features/documents/presentation/document_processing_screen.dart';
 import '../features/documents/presentation/document_upload_screen.dart';
 import '../features/feedback/presentation/feedback_screen.dart';
 import '../features/feedback/presentation/rehearsal_analysis_screen.dart';
@@ -20,6 +21,7 @@ import '../features/onboarding/presentation/tour_screen.dart';
 import '../features/onboarding/presentation/welcome_screen.dart';
 import '../features/practice/presentation/practice_screen.dart';
 import '../features/practice/presentation/processing_screen.dart';
+import '../features/practice/presentation/speech_analysis_processing_screen.dart';
 import '../features/practice/presentation/setup_screen.dart';
 import '../features/practice/presentation/widgets/permission_denied_view.dart';
 import '../features/profile/presentation/change_password_screen.dart';
@@ -47,12 +49,14 @@ abstract final class AppRoutes {
   static const practiceLive = '/practice/live';
   static const practiceDenied = '/practice/denied';
   static const processing = '/practice/processing';
+  static const practiceProcessing = '/practice/analysis-processing';
   static const sessionReport = '/feedback/report';
   static const transcript = '/feedback/transcript';
   static const starsReward = '/reward/stars';
   static const keepGoing = '/reward/keep-going';
   static const rehearsalAnalysis = '/analysis';
   static const documentUpload = '/documents';
+  static const documentProcessing = '/documents/processing';
   static const scriptAnalysis = '/documents/analysis';
   static const history = '/history';
   static const editProfile = '/profile/edit';
@@ -75,7 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(authRefresh.dispose);
   ref.listen(currentUidProvider, (_, _) => authRefresh.value++);
   return GoRouter(
-    initialLocation: AppRoutes.home,
+    initialLocation: AppRoutes.login,
     refreshListenable: authRefresh,
     redirect: (_, state) {
       final auth = ref.read(authUserProvider);
@@ -125,14 +129,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.practiceSetup,
-            builder: (_, state) => SetupScreen(
-              speechTopic:
-                  state.extra as String? ?? 'Tell a story in 60 seconds',
-            ),
+            builder: (_, state) {
+              final topic = state.extra;
+              return SetupScreen(
+                speechTopic: topic is String
+                    ? topic
+                    : 'Tell a story in 60 seconds',
+                showBack: topic is String,
+              );
+            },
           ),
           GoRoute(
             path: AppRoutes.practiceLive,
             builder: (_, _) => const PracticeScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.practiceProcessing,
+            builder: (_, state) => SpeechAnalysisProcessingScreen(
+              request: state.extra! as SpeechAnalysisProcessingRequest,
+            ),
           ),
           GoRoute(
             path: AppRoutes.practiceDenied,
@@ -167,6 +182,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.documentUpload,
             builder: (_, _) => const DocumentUploadScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.documentProcessing,
+            builder: (_, state) => DocumentProcessingScreen(
+              request: state.extra! as DocumentAnalysisRequest,
+            ),
           ),
           GoRoute(
             path: AppRoutes.scriptAnalysis,

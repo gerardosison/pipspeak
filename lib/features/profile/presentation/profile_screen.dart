@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/models/user_profile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +43,7 @@ class ProfileScreen extends ConsumerWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -50,30 +53,7 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.secondaryFixed.withValues(
-                                alpha: 0.6,
-                              ),
-                              border: Border.all(
-                                color: scheme.secondaryContainer,
-                                width: 3,
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                user.name.isEmpty
-                                    ? '?'
-                                    : user.name[0].toUpperCase(),
-                                style: text.headlineMedium?.copyWith(
-                                  color: scheme.primary,
-                                ),
-                              ),
-                            ),
-                          ),
+                          _ProfileAvatar(user: user, size: 72),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
@@ -85,12 +65,29 @@ class ProfileScreen extends ConsumerWidget {
                                     color: scheme.primary,
                                   ),
                                 ),
-                                Text(
-                                  '@${user.nickname}',
-                                  style: text.bodySmall?.copyWith(
-                                    color: scheme.onSurfaceVariant,
+                                if (user.nickname.isNotEmpty)
+                                  Text(
+                                    'Pip calls you ${user.nickname}',
+                                    style: text.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
+                                if (user.username.isNotEmpty)
+                                  Text(
+                                    '@${user.username}',
+                                    style: text.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                if (user.email.isNotEmpty)
+                                  Text(
+                                    user.email,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: text.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
                                 const SizedBox(height: 6),
                                 Wrap(
                                   spacing: 6,
@@ -292,6 +289,51 @@ class _SectionLabel extends StatelessWidget {
           letterSpacing: 1.4,
           fontWeight: FontWeight.w800,
           color: Theme.of(context).colorScheme.outline,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.user, required this.size});
+
+  final UserProfile user;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasLocalPhoto = !kIsWeb && user.photoPath?.isNotEmpty == true;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.secondaryFixed.withValues(alpha: 0.6),
+        border: Border.all(color: scheme.secondaryContainer, width: 3),
+      ),
+      child: ClipOval(
+        child: hasLocalPhoto
+            ? Image.file(
+                File(user.photoPath!),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _initial(context),
+              )
+            : _initial(context),
+      ),
+    );
+  }
+
+  Widget _initial(BuildContext context) {
+    final name = user.name.trim();
+    return Center(
+      child: Text(
+        name.isEmpty ? '?' : name[0].toUpperCase(),
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );

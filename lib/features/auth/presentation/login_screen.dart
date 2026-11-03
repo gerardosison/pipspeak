@@ -10,7 +10,6 @@ import '../services/auth_service.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../onboarding/presentation/welcome_screen.dart';
-import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -149,108 +148,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Future<void> _sendReset(String identifier) async {
-    var email = identifier.trim();
-    try {
-      if (email.isNotEmpty && !email.contains('@')) {
-        email =
-            await ref.read(profileRepositoryProvider).emailForUsername(email) ??
-            '';
-      }
-      await ref.read(authServiceProvider).sendPasswordReset(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'If an account exists, a password reset link was sent to its '
-            'email.',
-          ),
-          backgroundColor: AppColors.navy,
-        ),
-      );
-    } on AuthFailure catch (error) {
-      _showError(error.message);
-    } on Object {
-      _showError('Could not send the reset link. Check your connection.');
-    }
-  }
-
   void _onRegister() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-    );
-  }
-
-  void _showForgotPasswordDialog() {
-    final emailController = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_reset_rounded, color: AppColors.blue),
-            SizedBox(width: 10),
-            Text(
-              'Reset Password',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Enter your username or email address and we will send you instructions to recover your account.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.secondaryText(dialogContext),
-              ),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                labelText: 'Username or Email',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
-                hintText: 'e.g. speaker@pipspeak.app',
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text(
-                      'Cancel',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext);
-                      _sendReset(emailController.text);
-                    },
-                    child: const Text(
-                      'Send Link',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    context.push(AppRoutes.register);
   }
 
   @override
@@ -349,7 +248,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   ),
                                   SizeTransition(
                                     sizeFactor: _formCurve,
-                                    axisAlignment: 1,
+                                    alignment: Alignment.bottomCenter,
                                     child: _loginForm(context),
                                   ),
                                 ],
@@ -442,7 +341,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget _beginButton(double bottomSafe) {
     return SizeTransition(
       sizeFactor: _beginSize,
-      axisAlignment: 1,
+      alignment: Alignment.bottomCenter,
       child: FadeTransition(
         opacity: _beginFade,
         child: FadeTransition(
@@ -577,7 +476,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: _showForgotPasswordDialog,
+                onPressed: () => context.push(AppRoutes.forgotPassword),
                 child: const Text('Forgot password?'),
               ),
             ),

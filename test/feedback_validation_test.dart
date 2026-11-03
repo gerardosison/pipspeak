@@ -58,17 +58,20 @@ void main() {
       validator = FeedbackValidator();
     });
 
-    test('Feedback Report generates valid scores and items without forbidden words', () async {
-      final report = await engine.generate(
-        speech: SpeechMetrics.sample(wpm: 140.0, fillers: 1),
-        pose: PoseMetrics.sampleGood(),
-        speakingGoal: 'Project Pitch',
-      );
+    test(
+      'Feedback Report generates valid scores and items without forbidden words',
+      () async {
+        final report = await engine.generate(
+          speech: SpeechMetrics.sample(wpm: 140.0, fillers: 1),
+          pose: PoseMetrics.sampleGood(),
+          speakingGoal: 'Project Pitch',
+        );
 
-      expect(report.overallScore, greaterThanOrEqualTo(0));
-      expect(report.overallScore, lessThanOrEqualTo(100));
-      expect(validator.validateReport(report), isTrue);
-    });
+        expect(report.overallScore, greaterThanOrEqualTo(0));
+        expect(report.overallScore, lessThanOrEqualTo(100));
+        expect(validator.validateReport(report), isTrue);
+      },
+    );
   });
 }
 
@@ -81,8 +84,9 @@ class _FailingLocalModel implements LocalLlmService {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
-    if (invocation.memberName == #buildCoachingPrompt)
+    if (invocation.memberName == #buildCoachingPrompt) {
       return 'Measured speech coaching';
+    }
     if (invocation.memberName == #generateResponse) {
       generationCalls++;
       return Future<String>.error(StateError('Native model failed'));

@@ -223,9 +223,12 @@ class _TourScreenState extends State<TourScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-          child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Progress Bar
@@ -325,6 +328,8 @@ class _TourScreenState extends State<TourScreen> {
                 ),
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),

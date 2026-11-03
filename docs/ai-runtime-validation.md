@@ -20,6 +20,14 @@ speed. UTF-8 byte budgeting conservatively bounds Qwen's byte-level tokenization
 long chat drops oldest complete turns, and long documents explicitly sample
 beginning/middle/end passages. The app does not claim every page was analyzed.
 
+## Pinned native plugin
+
+The app uses the source-pinned local `third_party/llama_flutter_android` fork of
+0.2.6. Its documented changes wait for native Stop completion, avoid freeing an
+active context, reset complete-prompt KV state, remove private prompt logging,
+and seed Qwen3 non-thinking output. See that folder's `PIPSPEAK_PATCHES.md`.
+Do not revert to the hosted dependency without checking these fixes upstream.
+
 ## Weights are required
 
 Follow [local-models.md](local-models.md). Both actual weights and their verified

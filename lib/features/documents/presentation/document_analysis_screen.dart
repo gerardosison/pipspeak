@@ -26,12 +26,13 @@ class ScriptAnalysisScreen extends ConsumerWidget {
     if (doc == null) {
       return Scaffold(
         appBar: pipAppBar(context, title: 'Script Analysis'),
-        body: const PipEmptyState(
+        body: PipEmptyState(
           title: 'No script analyzed',
           message: 'Upload a script first to see its breakdown here.',
           asset: PipAsset.analysis,
           actionLabel: 'Upload a script',
           actionIcon: Icons.upload_file,
+          onAction: () => context.go(AppRoutes.documentUpload),
         ),
       );
     }
@@ -42,7 +43,7 @@ class ScriptAnalysisScreen extends ConsumerWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 1120),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -90,54 +91,69 @@ class ScriptAnalysisScreen extends ConsumerWidget {
                   Text(doc.keySections.join('\n'), style: text.bodySmall),
                   const SizedBox(height: 12),
                 ],
-                const SectionHeader(title: 'Covered topics'),
-                const SizedBox(height: 8),
-                PipCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      for (final s in doc.coveredTopics)
-                        _bulletRow(
-                          context,
-                          Icons.check_circle,
-                          AppColors.tertiaryFixed,
-                          s,
+                PipResponsiveGrid(
+                  minItemWidth: 420,
+                  maxColumns: 2,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SectionHeader(title: 'Covered topics'),
+                        const SizedBox(height: 8),
+                        PipCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              for (final s in doc.coveredTopics)
+                                _bulletRow(
+                                  context,
+                                  Icons.check_circle,
+                                  AppColors.tertiaryFixed,
+                                  s,
+                                ),
+                              if (doc.coveredTopics.isEmpty)
+                                const Text(
+                                  'Walang covered topics na naibalik ng model.',
+                                ),
+                            ],
+                          ),
                         ),
-                      if (doc.coveredTopics.isEmpty)
-                        const Text(
-                          'Walang covered topics na naibalik ng model.',
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SectionHeader(title: 'Gaps to fix'),
+                        const SizedBox(height: 8),
+                        PipCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              for (final s in doc.missingOrWeakTopics)
+                                _bulletRow(
+                                  context,
+                                  Icons.lightbulb,
+                                  AppColors.secondaryFixed,
+                                  s,
+                                ),
+                              for (final s in doc.speechImprovements)
+                                _bulletRow(
+                                  context,
+                                  Icons.tips_and_updates,
+                                  AppColors.secondaryContainer,
+                                  s,
+                                ),
+                              if (doc.missingOrWeakTopics.isEmpty &&
+                                  doc.speechImprovements.isEmpty)
+                                const Text(
+                                  'Walang specific na gaps o suggestions na naibalik.',
+                                ),
+                            ],
+                          ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const SectionHeader(title: 'Gaps to fix'),
-                const SizedBox(height: 8),
-                PipCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      for (final s in doc.missingOrWeakTopics)
-                        _bulletRow(
-                          context,
-                          Icons.lightbulb,
-                          AppColors.secondaryFixed,
-                          s,
-                        ),
-                      for (final s in doc.speechImprovements)
-                        _bulletRow(
-                          context,
-                          Icons.tips_and_updates,
-                          AppColors.secondaryContainer,
-                          s,
-                        ),
-                      if (doc.missingOrWeakTopics.isEmpty &&
-                          doc.speechImprovements.isEmpty)
-                        const Text(
-                          'Walang specific na gaps o suggestions na naibalik.',
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 PrimaryButton(
@@ -153,7 +169,7 @@ class ScriptAnalysisScreen extends ConsumerWidget {
                       child: PipSecondaryButton(
                         label: 'Re-analyze',
                         icon: Icons.refresh,
-                        onPressed: () => context.pop(),
+                        onPressed: () => context.go(AppRoutes.documentUpload),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -161,8 +177,8 @@ class ScriptAnalysisScreen extends ConsumerWidget {
                       child: PipGhostButton(
                         label: 'Export cue cards',
                         icon: Icons.style,
-                        onPressed: () => ScaffoldMessenger.of(context)
-                            .showSnackBar(
+                        onPressed: () =>
+                            ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Cue cards coming soon (mock)'),
                               ),

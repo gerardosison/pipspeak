@@ -30,6 +30,34 @@ class CameraPreviewWidget extends StatefulWidget {
   State<CameraPreviewWidget> createState() => _CameraPreviewWidgetState();
 }
 
+/// Crops the camera feed to fill its viewport while preserving the sensor's
+/// aspect ratio. This avoids letterboxing in both setup and live previews.
+class CoverCameraPreview extends StatelessWidget {
+  const CoverCameraPreview({super.key, required this.controller});
+
+  final CameraController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewSize = controller.value.previewSize;
+    if (!controller.value.isInitialized || previewSize == null) {
+      return const SizedBox.shrink();
+    }
+    return ClipRect(
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: previewSize.height,
+            height: previewSize.width,
+            child: CameraPreview(controller),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
   @override
   Widget build(BuildContext context) {
@@ -248,7 +276,7 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
     if (widget.cameraWorking &&
         controller != null &&
         controller.value.isInitialized) {
-      return SizedBox.expand(child: CameraPreview(controller));
+      return CoverCameraPreview(controller: controller);
     }
     return Container(
       decoration: const BoxDecoration(

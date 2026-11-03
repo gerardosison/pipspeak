@@ -19,7 +19,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -43,7 +44,8 @@ dependencies:
   audioplayers: 6.1.0
   file_picker: ^13.1.0
   syncfusion_flutter_pdf: ^35.1.39
-  llama_flutter_android: ^0.2.6
+  llama_flutter_android:
+    path: third_party/llama_flutter_android
   google_mlkit_text_recognition: ^0.13.0
   pdfrx: ^2.6.5
   flutter_riverpod: ^2.6.1

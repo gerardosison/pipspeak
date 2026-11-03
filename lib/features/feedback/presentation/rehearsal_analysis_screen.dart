@@ -11,6 +11,7 @@ import '../../../core/models/models.dart';
 import '../../../core/widgets/pip_buttons.dart';
 import '../../../core/widgets/pip_cards.dart';
 import '../../../core/widgets/pip_chips.dart';
+import '../../../core/widgets/pip_mascot.dart';
 import '../../../core/widgets/pip_misc.dart';
 
 /// Rehearsal analysis — overall score, Delivery/Topic tabs, weak-section
@@ -39,21 +40,20 @@ class _RehearsalAnalysisScreenState
     if (widget.session == null && history.isEmpty) {
       return Scaffold(
         appBar: pipAppBar(context, title: 'Rehearsal Analysis'),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'No saved practice results yet. Complete a practice session to see your measured feedback.',
-              textAlign: TextAlign.center,
-            ),
-          ),
+        body: PipEmptyState(
+          title: 'No rehearsal to analyze',
+          message: 'Complete a practice session to see your speech insights.',
+          asset: PipAsset.analysis,
+          actionLabel: 'Start practicing',
+          actionIcon: Icons.mic_rounded,
+          onAction: () => context.go(AppRoutes.practiceSetup),
         ),
       );
     }
     final session = widget.session ?? history.first;
-    final report = ref.watch(sessionReportProvider(session.id)).valueOrNull;
-    // A history entry must use its own saved measurements, never the last
-    // in-memory camera session, which may belong to a different practice.
+    final reportState = ref.watch(sessionReportProvider(session.id));
+    final report = reportState.valueOrNull;
+    // History must use its own persisted measurements, not the last capture.
     final matchingRecords =
         (ref.watch(practiceRecordsProvider).valueOrNull ?? []).where(
           (record) => record.id == session.id,
@@ -62,8 +62,7 @@ class _RehearsalAnalysisScreenState
     final posture = savedRecord?.postureScore;
     final swayPercent = savedRecord?.bodySwayCm == null
         ? null
-        : savedRecord!.bodySwayCm! /
-              2.0; // Legacy proxy = normalized sway × 200.
+        : savedRecord!.bodySwayCm! / 2.0;
 
     final score = session.paceScore;
     final mins = session.duration.inMinutes;
@@ -75,7 +74,7 @@ class _RehearsalAnalysisScreenState
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 1120),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -156,54 +155,80 @@ class _RehearsalAnalysisScreenState
                 ),
                 const SizedBox(height: 16),
 
-                if (_tab == 0) ...[
-                  _metricBar(
-                    'Pace',
-                    session.avgWpm / 180,
-                    '${session.avgWpm} wpm',
-                    AppColors.secondaryFixed,
-                    session.avgWpm > 155 ? 'Slightly fast' : 'In the zone',
-                  ),
-                  const SizedBox(height: 10),
-                  _metricBar(
-                    'Fillers',
-                    session.fillerCount / 15,
-                    '${session.fillerCount} words',
-                    session.fillerCount > 8
-                        ? AppColors.errorContainer
-                        : AppColors.tertiaryFixed,
-                    session.fillerCount > 8
-                        ? 'Trim "um" & "like"'
-                        : 'Clean delivery',
-                  ),
-                  const SizedBox(height: 10),
-                  _metricBar(
-                    'Body alignment',
-                    (posture ?? 0) / 100,
-                    posture == null ? 'Unavailable' : '${posture.round()}/100',
-                    AppColors.secondaryContainer,
-                    posture == null ? 'No saved camera measurement' : 'Saved camera-based heuristic; eye contact is not measured',
-                  ),
-                  const SizedBox(height: 10),
-                  _metricBar(
-                    'Torso variation',
-                    ((swayPercent ?? 0) / 7.5).clamp(0.0, 1.0),
-                    swayPercent == null
-                        ? 'Unavailable'
-                        : '${swayPercent.toStringAsFixed(1)}% frame width',
-                    AppColors.tertiaryFixed,
-                    swayPercent == null ? 'No saved camera measurement' : 'Image-relative estimate; camera movement affects this value',
-                  ),
-                ] else ...[
+                if (_tab == 0)
+                  PipResponsiveGrid(
+                    minItemWidth: 420,
+                    maxColumns: 2,
+                    runSpacing: 10,
+                    children: [
+                      _metricBar(
+                        'Pace',
+                        session.avgWpm / 180,
+                        savedRecord?.wordsPerMinute == null
+                            ? 'Unavailable'
+                            : '${session.avgWpm} wpm',
+                        AppColors.secondaryFixed,
+                        savedRecord?.wordsPerMinute == null
+                            ? 'No saved speech measurement'
+                            : session.avgWpm > 160
+                            ? 'Above the practice target range'
+                            : session.avgWpm < 120
+                            ? 'Below the practice target range'
+                            : 'Within the practice target range',
+                      ),
+                      _metricBar(
+                        'Hesitations detected',
+                        session.fillerCount / 15,
+                        savedRecord?.fillerCount == null
+                            ? 'Unavailable'
+                            : '${session.fillerCount} words',
+                        session.fillerCount > 8
+                            ? AppColors.errorContainer
+                            : AppColors.tertiaryFixed,
+                        savedRecord?.fillerCount == null
+                            ? 'No saved speech measurement'
+                            : 'Transcript-based estimate; recognition can omit hesitations',
+                      ),
+                      _metricBar(
+                        'Body alignment',
+                        (posture ?? 0) / 100,
+                        posture == null
+                            ? 'Unavailable'
+                            : '${posture.round()}/100',
+                        AppColors.secondaryContainer,
+                        posture == null
+                            ? 'No saved camera measurement'
+                            : 'Saved camera-based heuristic; eye contact is not measured',
+                      ),
+                      _metricBar(
+                        'Torso variation',
+                        ((swayPercent ?? 0) / 7.5).clamp(0.0, 1.0),
+                        swayPercent == null
+                            ? 'Unavailable'
+                            : '${swayPercent.toStringAsFixed(1)}% frame width',
+                        AppColors.tertiaryFixed,
+                        swayPercent == null
+                            ? 'No saved camera measurement'
+                            : 'Image-relative estimate; camera movement affects this value',
+                      ),
+                    ],
+                  )
+                else ...[
                   if (report == null ||
                       (report.strengths.isEmpty && report.improvements.isEmpty))
                     const Text('No topic feedback returned for this session.')
-                  else ...[
-                    for (final item in report.strengths)
-                      _sectionRow(item.title, 100, item.actionableTip),
-                    for (final item in report.improvements)
-                      _sectionRow(item.title, 50, item.actionableTip),
-                  ],
+                  else
+                    PipResponsiveGrid(
+                      minItemWidth: 420,
+                      maxColumns: 2,
+                      runSpacing: 10,
+                      children: [
+                        for (final item in report.strengths)
+                          _sectionRow(item.title, 100, item.actionableTip),
+                        for (final item in report.improvements)
+                          _sectionRow(item.title, 50, item.actionableTip),
+                      ],
+                    ),
                 ],
 
                 const SizedBox(height: 16),
@@ -215,41 +240,59 @@ class _RehearsalAnalysisScreenState
                     borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                     border: Border.all(color: AppColors.secondaryFixed),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.flag_circle,
-                        color: AppColors.secondary,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          report?.llmResponse?.isNotEmpty == true
-                              ? report!.llmResponse!
-                              : report?.summary ?? 'Wala pang local AI feedback para sa session na ito.',
-                          style: text.bodyMedium?.copyWith(
-                            color: AppColors.onSecondaryFixedVariant,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.flag_circle,
+                          color: AppColors.secondary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            report?.llmResponse?.isNotEmpty == true
+                                ? report!.llmResponse!
+                                : report?.summary ??
+                                      (reportState.isLoading
+                                          ? 'Loading saved feedback…'
+                                          : 'Detailed feedback is not available on this device.'),
+                            style: text.bodyMedium?.copyWith(
+                              color: AppColors.onSecondaryFixedVariant,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
-                PrimaryButton(
-                  label: 'Re-practice this speech',
-                  icon: Icons.replay,
-                  onPressed: () => context.push(AppRoutes.practiceSetup),
-                ),
-                const SizedBox(height: 8),
-                PipSecondaryButton(
-                  label: 'Export feedback',
-                  icon: Icons.ios_share,
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Export coming soon (mock)')),
-                  ),
+                PipResponsiveGrid(
+                  minItemWidth: 340,
+                  maxColumns: 2,
+                  runSpacing: 8,
+                  children: [
+                    PrimaryButton(
+                      label: 'Re-practice this speech',
+                      icon: Icons.replay,
+                      onPressed: () => context.push(
+                        AppRoutes.practiceSetup,
+                        extra: session.title,
+                      ),
+                    ),
+                    PipSecondaryButton(
+                      label: 'Export feedback',
+                      icon: Icons.ios_share,
+                      onPressed: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Export coming soon (mock)'),
+                            ),
+                          ),
+                    ),
+                  ],
                 ),
               ],
             ),

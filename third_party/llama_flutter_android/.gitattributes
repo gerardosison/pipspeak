@@ -1,0 +1,2 @@
+# Normalize upstream archive line endings without changing binary artifacts.
+* text=auto eol=lf

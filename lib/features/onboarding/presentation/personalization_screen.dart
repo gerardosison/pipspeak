@@ -114,9 +114,12 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
         actions: [TextButton(onPressed: _finish, child: const Text('Skip'))],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
-          child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Progress Bar
@@ -299,6 +302,8 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
                 ),
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),

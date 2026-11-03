@@ -105,11 +105,18 @@ PreferredSizeWidget pipAppBar(
 
 /// Consistent list-page scaffold body: max readable width, 16px gutters.
 class PipPageBody extends StatelessWidget {
-  const PipPageBody({super.key, required this.children, this.spacing = 16, this.padding});
+  const PipPageBody({
+    super.key,
+    required this.children,
+    this.spacing = 16,
+    this.padding,
+    this.maxWidth = 1040,
+  });
 
   final List<Widget> children;
   final double spacing;
   final EdgeInsetsGeometry? padding;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +124,7 @@ class PipPageBody extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: ListView.separated(
             padding: padding ??
                 const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -129,6 +136,59 @@ class PipPageBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Wraps cards into readable columns as space allows, then stacks them on
+/// narrow screens. Children keep their natural heights.
+class PipResponsiveGrid extends StatelessWidget {
+  const PipResponsiveGrid({
+    super.key,
+    required this.children,
+    this.minItemWidth = 340,
+    this.maxColumns = 3,
+    this.spacing = 16,
+    this.runSpacing = 16,
+  });
+
+  final List<Widget> children;
+  final double minItemWidth;
+  final int maxColumns;
+  final double spacing;
+  final double runSpacing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (!constraints.hasBoundedWidth) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) SizedBox(height: runSpacing),
+              children[i],
+            ],
+          ],
+        );
+      }
+
+      final columns = ((constraints.maxWidth + spacing) /
+              (minItemWidth + spacing))
+          .floor()
+          .clamp(1, maxColumns)
+          .toInt();
+      final itemWidth =
+          (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+      return Wrap(
+        spacing: spacing,
+        runSpacing: runSpacing,
+        children: [
+          for (final child in children)
+            SizedBox(width: itemWidth, child: child),
+        ],
+      );
+    },
+  );
 }
 
 /// Ambient pastel blobs used behind auth/onboarding screens.

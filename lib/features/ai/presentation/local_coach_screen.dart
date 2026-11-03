@@ -20,7 +20,9 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
   final List<_CoachMessage> _messages = [];
   bool _busy = false;
   InferenceCancellation? _request;
-  String _status = 'Offline Qwen assistant';
+  late String _status = _llm.isSupported
+      ? 'On-device Qwen loads when you ask your first question.'
+      : 'Local AI Coach inference is available in the Android app.';
 
   @override
   void dispose() {
@@ -32,7 +34,7 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
 
   Future<void> _send() async {
     final question = _input.text.trim();
-    if (question.isEmpty || _busy) return;
+    if (question.isEmpty || _busy || !_llm.isSupported) return;
     final request = InferenceCancellation();
     _request = request;
     _input.clear();
@@ -138,102 +140,127 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: pipAppBar(context, title: 'Ask Local Qwen'),
+    appBar: pipAppBar(context, title: 'AI Coach'),
     body: SafeArea(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-            child: Row(
-              children: [
-                const Icon(Icons.offline_bolt, color: AppColors.secondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _status,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1040),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      _llm.isSupported
+                          ? Icons.offline_bolt_rounded
+                          : Icons.info_outline_rounded,
+                      color: AppColors.secondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _status,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           Expanded(
-            child: _messages.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(28),
-                      child: Text(
-                        'Magtanong tungkol sa speech, presentation, o kahit ibang paksa. Sasagot ang Qwen nang offline sa device na ito.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return Align(
-                        alignment: message.isUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 520),
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(13),
-                          decoration: BoxDecoration(
-                            color: message.isUser
-                                ? AppColors.navy
-                                : Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHigh,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: _messages.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(28),
                           child: Text(
-                            message.text.isEmpty && _busy ? '…' : message.text,
-                            style: TextStyle(
-                              color: message.isUser
-                                  ? Colors.white
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
+                            _llm.isSupported
+                                ? 'Ask the AI Coach about a speech, presentation, or any other topic. Qwen answers locally on this device.'
+                                : 'The local Qwen model is not available in this browser. Open the Android app to chat with the AI Coach; your questions stay on-device.',
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final message = _messages[index];
+                          return Align(
+                            alignment: message.isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(13),
+                              decoration: BoxDecoration(
+                                color: message.isUser
+                                    ? AppColors.navy
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Text(
+                                message.text.isEmpty && _busy
+                                    ? '…'
+                                    : message.text,
+                                style: TextStyle(
+                                  color: message.isUser
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _input,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: const InputDecoration(
-                      hintText: 'Type your question…',
-                      border: OutlineInputBorder(),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1040),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _input,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: const InputDecoration(
+                          hintText: 'Ask the AI Coach…',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    if (_busy)
+                      IconButton(
+                        onPressed: () => _request?.cancel(),
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        tooltip: 'Stop response',
+                      ),
+                    IconButton.filled(
+                      onPressed: _busy || !_llm.isSupported ? null : _send,
+                      icon: const Icon(Icons.send_rounded),
+                      tooltip: 'Ask the AI Coach',
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _busy
-                      ? () {
-                          _request?.cancel();
-                          setState(() => _status = 'Stopping response…');
-                        }
-                      : _send,
-                  icon: Icon(_busy ? Icons.stop_rounded : Icons.send_rounded),
-                  tooltip: _busy ? 'Stop response' : 'Send to local Qwen',
-                ),
-              ],
+              ),
             ),
           ),
         ],
