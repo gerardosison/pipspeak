@@ -1,24 +1,42 @@
 import 'dart:math' as math;
 
-/// Member 4 - Pose Metrics Calculator for MediaPipe landmarks
+/// Image-relative pose heuristics; these are not calibrated physical distances.
 class PoseMetricsCalculator {
-  /// Computes body sway deviation in cm from torso center coordinates
-  double calculateBodySwayCm(List<double> torsoXPositions) {
-    if (torsoXPositions.isEmpty) return 0.0;
-    double mean = torsoXPositions.reduce((a, b) => a + b) / torsoXPositions.length;
-    double variance = torsoXPositions.fold(0.0, (s, x) => s + math.pow(x - mean, 2)) / torsoXPositions.length;
-    double stdDev = math.sqrt(variance);
-    return double.parse((stdDev * 282.8).toStringAsFixed(1));
+  /// Standard deviation of normalized torso-center X (fraction of frame width).
+  double calculateNormalizedSway(List<double> torsoXPositions) {
+    final valid = torsoXPositions
+        .where((x) => x.isFinite && x >= 0 && x <= 1)
+        .toList();
+    if (valid.length < 2) return 0;
+    final mean = valid.reduce((a, b) => a + b) / valid.length;
+    final variance =
+        valid.fold<double>(0, (sum, x) => sum + (x - mean) * (x - mean)) /
+        valid.length;
+    return math.sqrt(variance);
   }
 
-  /// Calculates posture alignment score from shoulder & head landmarks
+  /// Legacy storage scale, retained for database/report compatibility.
+  /// Despite the historic name, the result is NOT centimeters. Divide by 200
+  /// for normalized sway, or by 2 for percentage of image width.
+  double calculateBodySwayCm(List<double> torsoXPositions) =>
+      calculateNormalizedSway(torsoXPositions) * 200;
+
+  /// Shoulder horizontal-alignment heuristic, independent of mirroring and
+  /// shoulder ordering. Inputs use the same coordinate units on both axes.
   double calculatePostureScore({
     required double shoulderDx,
     required double shoulderDy,
     required double headOffset,
   }) {
-    double angleDeg = (math.atan2(shoulderDy, shoulderDx).abs() * 180 / math.pi);
-    double score = math.max(0.0, 100.0 - (angleDeg * 5.0) - (headOffset * 80.0));
+    if (!shoulderDx.isFinite ||
+        !shoulderDy.isFinite ||
+        !headOffset.isFinite ||
+        (shoulderDx == 0 && shoulderDy == 0)) {
+      return 0;
+    }
+    final angleDeg =
+        math.atan2(shoulderDy.abs(), shoulderDx.abs()) * 180 / math.pi;
+    final score = 100 - angleDeg * 5 - headOffset.abs() * 80;
     return double.parse(score.clamp(0.0, 100.0).toStringAsFixed(1));
   }
 }

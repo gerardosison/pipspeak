@@ -20,7 +20,10 @@ class PracticeSession {
   final Duration duration;
   final int avgWpm;
   final int fillerCount;
-  final int eyeContactPct;
+
+  /// Reserved for a future validated gaze measurement. Null means unavailable;
+  /// body alignment must never be substituted for eye contact.
+  final int? eyeContactPct;
   final int paceScore; // 0-100
   final int starsEarned;
   final bool improved;

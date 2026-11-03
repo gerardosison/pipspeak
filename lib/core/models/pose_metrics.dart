@@ -33,7 +33,7 @@ enum AnalysisQuality {
   String get label {
     switch (this) {
       case AnalysisQuality.high:
-        return 'High Quality (30+ FPS, clear landmarks)';
+        return 'High landmark availability';
       case AnalysisQuality.medium:
         return 'Medium Quality (partial lighting / minor occlusion)';
       case AnalysisQuality.low:
@@ -62,10 +62,15 @@ class PoseLandmarkPoint {
 
 class PoseFrameData {
   final int timestampMs;
-  final Map<int, PoseLandmarkPoint> landmarks; // Keyed by MediaPipe Landmark Index (0..32)
+  final Map<int, PoseLandmarkPoint>
+  landmarks; // Keyed by MediaPipe Landmark Index (0..32)
   final bool isPersonDetected;
   final bool isOccluded;
   final bool hasMultiplePeople;
+
+  /// Width/height of the image coordinates used to normalize these landmarks.
+  /// Converts normalized X and Y to equal units for shoulder tilt estimates.
+  final double imageAspectRatio;
 
   const PoseFrameData({
     required this.timestampMs,
@@ -73,6 +78,7 @@ class PoseFrameData {
     this.isPersonDetected = true,
     this.isOccluded = false,
     this.hasMultiplePeople = false,
+    this.imageAspectRatio = 1.0,
   });
 }
 
@@ -80,7 +86,10 @@ class PoseMetrics {
   final int totalFrames;
   final int validFrameCount;
   final FramingStatus framingStatus;
-  final double bodySwayCm; // Measured body sway deviation in cm
+
+  /// Legacy database/report field: 200 times the standard deviation of
+  /// normalized torso X. NOT a calibrated distance in centimeters.
+  final double bodySwayCm;
   final double upperBodyMovementScore; // 0 - 100
   final double postureScore; // 0 - 100 (head/shoulder alignment)
   final double handGestureActivityScore; // 0 - 100
@@ -101,10 +110,18 @@ class PoseMetrics {
     required this.qualityLimitations,
   });
 
+  /// Lateral torso variation as a fraction of the image width.
+  double get normalizedSway => bodySwayCm / 200;
+
+  /// Lateral torso variation as a percentage of the image width.
+  double get swayWidthPercent => normalizedSway * 100;
+
   double get validFramePercentage =>
       totalFrames == 0 ? 0.0 : (validFrameCount / totalFrames) * 100.0;
 
-  factory PoseMetrics.unavailable({String reason = 'Camera disabled or unavailable.'}) {
+  factory PoseMetrics.unavailable({
+    String reason = 'Camera disabled or unavailable.',
+  }) {
     return PoseMetrics(
       totalFrames: 0,
       validFrameCount: 0,

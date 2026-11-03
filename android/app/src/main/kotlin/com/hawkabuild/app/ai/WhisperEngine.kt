@@ -18,6 +18,13 @@ class WhisperEngine(private val context: Context) {
     fun initialize(): Boolean {
         if (whisperContext != null) return true
         return try {
+            // A manifest pins the actual artifact; a filename or size threshold
+            // cannot distinguish a valid model from a truncated/wrong download.
+            ModelIntegrity.read(
+                context,
+                "flutter_assets/assets/models/whisper/model-integrity.json",
+                "ggml-base-q5_1.bin",
+            ).verifyAsset(context, modelAsset)
             whisperContext = WhisperContext.createContextFromAsset(
                 context.assets,
                 modelAsset,
@@ -31,27 +38,36 @@ class WhisperEngine(private val context: Context) {
         }
     }
 
+    fun initializationError(): String = loadError?.message
+        ?: "Whisper model could not be loaded. Verify model assets and rebuild the app."
+
     @Synchronized
     fun transcribe(audioPath: String, language: String = "auto"): Map<String, Any> {
         require(audioPath.isNotBlank()) { "Audio path is empty." }
         if (!initialize()) {
-            throw IllegalStateException("Whisper model could not be loaded.", loadError)
+            throw IllegalStateException(initializationError(), loadError)
         }
 
         val file = File(audioPath)
         require(file.isFile) { "Audio file does not exist: $audioPath" }
         val wav = readPcm16Wav(file)
-        val text = runBlocking {
-            whisperContext!!.transcribeData(
+        val transcription = runBlocking {
+            whisperContext!!.transcribeWithSegments(
                 data = wav.samples,
-                printTimestamp = false,
                 language = language,
-            ).trim()
+            )
         }
         return mapOf(
-            "text" to text,
+            "text" to transcription.text,
+            "segments" to transcription.segments.map {
+                mapOf(
+                    "startSeconds" to it.startSeconds,
+                    "endSeconds" to it.endSeconds,
+                    "text" to it.text,
+                )
+            },
             "durationSeconds" to wav.samples.size / SAMPLE_RATE.toDouble(),
-            "language" to language,
+            "language" to transcription.language,
         )
     }
 

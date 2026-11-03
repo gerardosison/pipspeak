@@ -1,8 +1,6 @@
-import
- 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:llama_flutter_android/llama_flutter_android.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/widgets/pip_misc.dart';
@@ -21,10 +19,12 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
   final _scroll = ScrollController();
   final List<_CoachMessage> _messages = [];
   bool _busy = false;
+  InferenceCancellation? _request;
   String _status = 'Offline Qwen assistant';
 
   @override
   void dispose() {
+    _request?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -33,6 +33,8 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
   Future<void> _send() async {
     final question = _input.text.trim();
     if (question.isEmpty || _busy) return;
+    final request = InferenceCancellation();
+    _request = request;
     _input.clear();
     setState(() {
       _busy = true;
@@ -42,16 +44,24 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
     });
     final replyIndex = _messages.length - 1;
     final rawReply = StringBuffer();
+    final renderClock = Stopwatch()..start();
     try {
       if (!_llm.isLoaded) {
-        await _llm.initialize(
-          onStatus: (message) {
-            if (mounted) setState(() => _status = message);
-          },
-        );
+        await Future.any<void>([
+          _llm.initialize(
+            onStatus: (message) {
+              if (mounted && !request.isCancelled) {
+                setState(() => _status = message);
+              }
+            },
+          ),
+          request.whenCancelled,
+        ]);
       }
+      if (!mounted || request.isCancelled) return;
       final history = _messages
           .take(replyIndex - 1)
+          .where((message) => message.includeInHistory)
           .map(
             (message) => ChatMessage(
               role: message.isUser ? 'user' : 'assistant',
@@ -63,9 +73,13 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
         userMessage: question,
         conversationHistory: history,
         maxTokens: 256,
+        cancellation: request,
       )) {
-        if (!mounted) return;
+        if (!mounted || request.isCancelled) return;
         rawReply.write(token);
+        // Rebuild at most 25 times per second, rather than once per token.
+        if (renderClock.elapsedMilliseconds < 40) continue;
+        renderClock.reset();
         setState(() {
           _messages[replyIndex].text = LocalLlmService.stripThinking(
             rawReply.toString(),
@@ -73,23 +87,39 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
         });
         _scrollToBottom();
       }
+      final answer = LocalLlmService.stripThinking(rawReply.toString());
+      if (answer.isEmpty) {
+        throw StateError('The model returned no answer. Try again.');
+      }
       if (mounted) {
-        setState(() {
-          _messages[replyIndex].text = LocalLlmService.stripThinking(
-            rawReply.toString(),
-          );
-        });
+        setState(() => _messages[replyIndex].text = answer);
       }
       if (mounted) setState(() => _status = 'Offline Qwen assistant');
     } catch (error) {
-      if (mounted) {
+      if (mounted && !request.isCancelled) {
         setState(() {
-          _messages[replyIndex].text = 'Hindi makasagot ang local Qwen: $error';
+          _messages[replyIndex - 1].includeInHistory = false;
+          _messages[replyIndex].includeInHistory = false;
+          _messages[replyIndex].text = 'Could not answer locally: $error';
           _status = 'Qwen could not answer';
         });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          if (request.isCancelled) {
+            _messages[replyIndex - 1].includeInHistory = false;
+            _messages[replyIndex].includeInHistory = false;
+            _messages[replyIndex].text =
+                LocalLlmService.stripThinking(rawReply.toString()).isEmpty
+                ? 'Response stopped.'
+                : LocalLlmService.stripThinking(rawReply.toString());
+            _status = 'Response stopped';
+          }
+        });
+      }
+      if (identical(_request, request)) _request = null;
       _scrollToBottom();
     }
   }
@@ -157,9 +187,9 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
                           decoration: BoxDecoration(
                             color: message.isUser
                                 ? AppColors.navy
-                                : Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerHigh,
+                                : Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(18),
                           ),
                           child: Text(
@@ -194,9 +224,14 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  onPressed: _busy ? null : _send,
-                  icon: const Icon(Icons.send_rounded),
-                  tooltip: 'Send to local Qwen',
+                  onPressed: _busy
+                      ? () {
+                          _request?.cancel();
+                          setState(() => _status = 'Stopping response…');
+                        }
+                      : _send,
+                  icon: Icon(_busy ? Icons.stop_rounded : Icons.send_rounded),
+                  tooltip: _busy ? 'Stop response' : 'Send to local Qwen',
                 ),
               ],
             ),
@@ -212,4 +247,5 @@ class _CoachMessage {
 
   String text;
   final bool isUser;
+  bool includeInHistory = true;
 }

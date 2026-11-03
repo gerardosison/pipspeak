@@ -1,7 +1,10 @@
 import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+
 import '../../../core/models/feedback_report.dart';
+
 import 'package:uuid/uuid.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +16,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../core/models/pose_metrics.dart';
 import '../../../core/models/speech_metrics.dart';
 import '../../../features/ai/feedback/local_llm_service.dart';
+import '../../../features/ai/feedback/rule_based_feedback.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/camera_platform_support.dart';
 import '../services/pose_camera_session.dart';
@@ -58,6 +62,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
   late bool _isCameraOn;
   late bool _isMicOn;
   bool _isAnalyzing = false;
+  InferenceCancellation? _analysisRequest;
 
   /// Generated once so retries never create a duplicate saved session.
   final String _sessionId = const Uuid().v4();
@@ -196,6 +201,12 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
 
   // Step 4: The user can end the speech by clicking the X button at the bottom middle
   Future<void> _endSpeech() async {
+    if (_isAnalyzing) return;
+    final request = InferenceCancellation();
+    _analysisRequest = request;
+    final accountId = ref.read(currentUidProvider);
+    final practicePurpose = ref.read(selectedGoalProvider);
+    final language = ref.read(selectedLanguageProvider);
     _speechTimer?.cancel();
     setState(() => _isAnalyzing = true);
     try {
@@ -208,6 +219,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
       if (_poseSession.isRunning) {
         poseMetrics = await _poseSession.stop(_sessionId);
       }
+      if (!mounted || request.isCancelled) return;
       final hasAudio = _isMicOn && audioPath != null && recordedSeconds > 0;
       final hasPose = poseMetrics != null && poseMetrics.totalFrames > 0;
       if (!hasAudio && !hasPose) {
@@ -220,6 +232,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
       var metrics = SpeechMetrics.empty();
       if (hasAudio) {
         final transcription = await speechService.transcribe(audioPath);
+        if (!mounted || request.isCancelled) return;
         if (!transcription.isSuccess) {
           throw StateError(
             transcription.errorMessage ?? 'Could not transcribe the recording.',
@@ -235,28 +248,44 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
 
       final llm = LocalLlmService();
       try {
-        if (!llm.isLoaded) await llm.initialize();
+        if (!llm.isLoaded) {
+          await Future.any<void>([llm.initialize(), request.whenCancelled]);
+        }
       } on Object {
         // The local LLM is optional; rule-based feedback is still evidence-based.
       }
-      final report = await ref
-          .read(feedbackServiceProvider)
-          .generate(
-            speech: metrics,
-            pose: poseMetrics,
-            document: ref.read(lastDocAnalysisProvider),
-            speakingGoal: widget.speechTopic,
-          );
+      if (!mounted || request.isCancelled) return;
+      final feedback = ref.read(feedbackServiceProvider);
+      final document = ref.read(lastDocAnalysisProvider);
+      final report = feedback is RuleBasedFeedbackEngine
+          ? await feedback.generate(
+              speech: metrics,
+              pose: poseMetrics,
+              document: document,
+              speakingGoal: widget.speechTopic,
+              cancellation: request,
+            )
+          : await feedback.generate(
+              speech: metrics,
+              pose: poseMetrics,
+              document: document,
+              speakingGoal: widget.speechTopic,
+            );
+      if (!mounted) return;
       final uid = ref.read(currentUidProvider);
-      if (uid == null) throw StateError('Sign in again to save this session.');
+      if (uid == null || uid != accountId) {
+        throw StateError(
+          'Account changed. This session was not saved to another account.',
+        );
+      }
       // Save locally first; cloud sync happens afterwards.
       final saved = await ref
           .read(progressRepositoryProvider)
           .saveCompletedPractice(
             userId: uid,
             sessionId: _sessionId,
-            practicePurpose: ref.read(selectedGoalProvider),
-            language: ref.read(selectedLanguageProvider),
+            practicePurpose: practicePurpose,
+            language: language,
             topic: widget.speechTopic,
             durationSeconds: seconds,
             report: report,
@@ -264,6 +293,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
             pose: hasPose ? poseMetrics : null,
             audioPath: audioPath,
           );
+      if (!mounted || ref.read(currentUidProvider) != accountId) return;
       ref.read(lastReportProvider.notifier).state = FeedbackReport(
         overallScore: report.overallScore,
         summary: report.summary,
@@ -288,6 +318,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
         );
       }
     } finally {
+      if (identical(_analysisRequest, request)) _analysisRequest = null;
       if (mounted) setState(() => _isAnalyzing = false);
     }
   }
@@ -296,6 +327,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
   void dispose() {
     _countdownTimer?.cancel();
     _speechTimer?.cancel();
+    _analysisRequest?.cancel();
     unawaited(_audio.dispose());
     unawaited(_poseSession.dispose());
     unawaited(_cameraController?.dispose());

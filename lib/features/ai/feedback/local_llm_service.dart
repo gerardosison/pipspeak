@@ -1,261 +1,395 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
-import 'package:llama_flutter_android/llama_flutter_android.dart';
-import '../../../core/models/speech_metrics.dart';
-import '../../../core/models/pose_metrics.dart';
 
-/// Real on-device GGUF inference using llama_flutter_android (llama.cpp).
-/// Model: Qwen3-0.6B-Q4_K_M — must be placed at:
-///   android/app/src/main/assets/models/llm/qwen3-0.6b-q4_k_m.gguf
-/// Download: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF
+import '../../../core/models/pose_metrics.dart';
+import '../../../core/models/speech_metrics.dart';
+import 'local_llm_backend.dart';
+import 'local_llm_platform_stub.dart'
+    if (dart.library.ui) 'local_llm_platform_flutter.dart';
+
+export 'local_llm_backend.dart';
+
+/// Cancels only this request, including a request waiting for the shared model.
+class InferenceCancellation {
+  final Completer<void> _cancelled = Completer<void>();
+  bool get isCancelled => _cancelled.isCompleted;
+  Future<void> get whenCancelled => _cancelled.future;
+  void cancel() {
+    if (!isCancelled) _cancelled.complete();
+  }
+
+  void throwIfCancelled() {
+    if (isCancelled) throw const InferenceCancelledException();
+  }
+}
+
+class InferenceCancelledException implements Exception {
+  const InferenceCancelledException();
+  @override
+  String toString() => 'Local AI request cancelled.';
+}
+
+class ContextLimitException implements Exception {
+  const ContextLimitException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// One mobile Qwen runtime shared by chat, document analysis and coaching.
+/// Requests serialize; cancelling a queued request cannot stop another feature.
 class LocalLlmService {
   static final LocalLlmService _instance = LocalLlmService._internal();
   factory LocalLlmService({
     String modelName = 'Qwen3-0.6B-GGUF (Q4_K_M)',
     bool isEnabled = true,
   }) => _instance;
-  LocalLlmService._internal();
+  LocalLlmService._internal()
+    : _backend = createLocalLlmBackend(),
+      _resolveModel = resolveDefaultModel;
 
-  final LlamaController _controller = LlamaController();
+  LocalLlmService.forTesting({
+    required LocalLlmBackend backend,
+    required Future<String> Function() resolveModel,
+    this.loadTimeout = const Duration(minutes: 2),
+    this.generationTimeout = const Duration(minutes: 2),
+    this.idleTimeout = const Duration(seconds: 45),
+    this.stopTimeout = const Duration(seconds: 5),
+  }) : _backend = backend,
+       _resolveModel = resolveModel;
+
+  static const contextSize = 2048;
+  static const _safetyTokens = 128;
+  static const defaultSystemMessage =
+      'You are PipSpeak, an offline public-speaking tutor. Answer the latest '
+      'question directly in the user\'s language, including Filipino or Taglish. '
+      'Be concise, use only supplied evidence, and never invent measurements. '
+      'Do not show reasoning or thinking blocks. /no_think';
+
+  final LocalLlmBackend _backend;
+  final Future<String> Function() _resolveModel;
+  Duration loadTimeout = const Duration(minutes: 2);
+  Duration generationTimeout = const Duration(minutes: 2);
+  Duration idleTimeout = const Duration(seconds: 45);
+  Duration stopTimeout = const Duration(seconds: 5);
+  Future<void>? _initializing;
+  Future<void> _tail = Future<void>.value();
+  InferenceCancellation? _active;
   bool _isLoaded = false;
-  bool _isLoading = false;
+  bool _disposed = false;
+  bool _quarantined = false;
   String _lastError = '';
 
-  static const String _assetPath = 'assets/models/llm/qwen3-0.6b-q4_k_m.gguf';
-  static const String _modelFileName = 'qwen3-0.6b-q4_k_m.gguf';
-  static const MethodChannel _nativeChannel = MethodChannel(
-    'com.hawkabuild.app/ai',
-  );
-
-  bool get isLoaded => _isLoaded;
-  bool get isLoading => _isLoading;
+  bool get isLoaded => _isLoaded && !_disposed && !_quarantined;
+  bool get isLoading => _initializing != null;
   String get lastError => _lastError;
 
-  /// Removes private reasoning blocks that some local models emit.
   static String stripThinking(String response) {
     var cleaned = response;
-    final completeBlock = RegExp(
+    final block = RegExp(
       r'<think\b[^>]*>[\s\S]*?</think\s*>',
       caseSensitive: false,
     );
-    while (completeBlock.hasMatch(cleaned)) {
-      cleaned = cleaned.replaceFirst(completeBlock, '');
+    while (block.hasMatch(cleaned)) {
+      cleaned = cleaned.replaceFirst(block, '');
     }
-    cleaned = cleaned.replaceFirst(
-      RegExp(r'<think\b[^>]*>[\s\S]*$', caseSensitive: false),
-      '',
-    );
-    cleaned = cleaned.replaceAll(
-      RegExp(r'</think\s*>', caseSensitive: false),
-      '',
-    );
-    // Streaming tokens can split a tag between chunks. Do not render a
-    // partial tag that is waiting for the next token.
-    cleaned = cleaned.replaceFirst(
-      RegExp(r'<\/?think\b[^>]*$', caseSensitive: false),
-      '',
-    );
-    return cleaned.trim();
+    return cleaned
+        .replaceFirst(
+          RegExp(r'<think\b[^>]*>[\s\S]*$', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'</think\s*>', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'<\/?think\b[^>]*$', caseSensitive: false), '')
+        .trim();
   }
 
-  // ── MODEL SETUP ─────────────────────────────────────────────────────────────
+  /// UTF-8 bytes are a conservative upper bound for this byte-level tokenizer.
+  /// Reserve output, template framing and safety before admitting history.
+  static int userMessageByteBudget({
+    int maxTokens = 512,
+    String systemMessage = defaultSystemMessage,
+  }) =>
+      contextSize -
+      maxTokens -
+      _safetyTokens -
+      utf8.encode(systemMessage).length -
+      48;
 
-  /// Copies the GGUF model from Flutter assets to app-documents directory
-  /// because llama.cpp needs a real filesystem path, not an asset URI.
-  Future<String> _ensureModelOnDisk() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final modelFile = File(p.join(dir.path, 'llm', _modelFileName));
-
-    // If already copied and > 1 MB, skip copy
-    if (modelFile.existsSync() && modelFile.lengthSync() > 1024 * 1024) {
-      return modelFile.path;
+  static List<ChatMessage> budgetMessages({
+    required String userMessage,
+    List<ChatMessage> history = const [],
+    String systemMessage = defaultSystemMessage,
+    int maxTokens = 512,
+  }) {
+    if (maxTokens < 1 || maxTokens > 512) {
+      throw ArgumentError('Output must be between 1 and 512 tokens.');
     }
-
-    await modelFile.parent.create(recursive: true);
-
-    // On Android, copy the bundled native asset to app storage. llama.cpp
-    // needs a real path for the local GGUF model.
-    try {
-      final nativePath = await _nativeChannel.invokeMethod<String>(
-        'prepareQwenModel',
+    var remaining =
+        userMessageByteBudget(
+          maxTokens: maxTokens,
+          systemMessage: systemMessage,
+        ) -
+        utf8.encode(userMessage).length;
+    if (userMessage.trim().isEmpty) throw ArgumentError('Enter a message.');
+    if (remaining < 0) {
+      throw const ContextLimitException(
+        'This request is too long for the mobile model. Shorten it or analyze smaller sections.',
       );
-      if (nativePath != null) {
-        final nativeFile = File(nativePath);
-        if (nativeFile.existsSync() && nativeFile.lengthSync() > 1024 * 1024) {
-          return nativeFile.path;
-        }
-      }
-    } on MissingPluginException {
-      // Fall through to Flutter asset loading on non-Android platforms.
-    } on PlatformException catch (error) {
-      _lastError = error.message ?? 'Could not copy the bundled Qwen model.';
     }
-
-    try {
-      final data = await rootBundle.load(_assetPath);
-      final bytes = data.buffer.asUint8List();
-
-      if (bytes.length >= 1024 * 1024) {
-        await modelFile.writeAsBytes(bytes, flush: true);
-        return modelFile.path;
-      }
-    } catch (_) {}
-
-    throw Exception(
-      'Qwen GGUF model is missing or incomplete. Ensure the real model file '
-      'is at android/app/src/main/assets/models/llm/$_modelFileName. '
-      '${_lastError.isEmpty ? '' : _lastError}',
-    );
+    final selected = <ChatMessage>[];
+    // Keep only contiguous complete turns, newest first. Never retain an orphan
+    // assistant reply or accept a history entry with a privileged system role.
+    for (var i = history.length - 1; i >= 1; i -= 2) {
+      final assistant = history[i];
+      final user = history[i - 1];
+      if (user.role != 'user' || assistant.role != 'assistant') break;
+      final cost =
+          utf8.encode(user.content).length +
+          utf8.encode(assistant.content).length +
+          32;
+      if (cost > remaining) break;
+      selected.insertAll(0, [user, assistant]);
+      remaining -= cost;
+    }
+    return [
+      ChatMessage(role: 'system', content: systemMessage),
+      ...selected,
+      ChatMessage(role: 'user', content: userMessage),
+    ];
   }
 
-  /// Initialize (load) the Qwen3 model into llama.cpp.
+  /// Every concurrent caller awaits the same load. A timeout does not allow a
+  /// second native load while the original native operation is still running.
   Future<void> initialize({void Function(String)? onStatus}) async {
-    if (_isLoaded) return;
-    if (_isLoading) return;
-    _isLoading = true;
-    _lastError = '';
-
-    try {
-      onStatus?.call('📂 Copying model to app storage...');
-      final modelPath = await _ensureModelOnDisk();
-
-      onStatus?.call('🔍 Detecting GPU capabilities...');
-      final gpu = await _controller.detectGpu();
-
-      onStatus?.call(
-        '⚙️ Loading model on ${gpu.gpuName}...\n'
-        'GPU layers: ${gpu.recommendedGpuLayers}, '
-        'Free RAM: ${(gpu.freeRamBytes / 1024 / 1024).toStringAsFixed(0)} MB',
-      );
-
-      await _controller.loadModel(
-        modelPath: modelPath,
-        threads: 4,
-        contextSize: 2048,
-        gpuLayers: gpu.recommendedGpuLayers,
-      );
-
-      _isLoaded = true;
-      onStatus?.call('✅ Qwen3-0.6B ready! Ask me anything.');
-    } catch (e) {
-      _lastError = e.toString();
-      _isLoading = false;
-      rethrow;
+    _checkUsable();
+    if (isLoaded) return;
+    void report(String message) {
+      // UI status callbacks must never invalidate an already loaded runtime.
+      try {
+        onStatus?.call(message);
+      } catch (_) {}
     }
 
-    _isLoading = false;
+    if (_initializing == null) {
+      _initializing = Future<void>(() async {
+        _lastError = '';
+        try {
+          report('Checking the local Qwen model…');
+          final path = await _resolveModel();
+          report('Loading Qwen on CPU…');
+          await _backend.load(
+            path: path,
+            threads: Platform.numberOfProcessors.clamp(1, 4),
+            contextSize: contextSize,
+            // Reliable baseline across Android drivers. GPU offload must be
+            // enabled only after device profiling, not blindly recommended.
+            gpuLayers: 0,
+          );
+          _isLoaded = true;
+          report('Offline Qwen is ready.');
+        } catch (error) {
+          _lastError = error.toString();
+          _isLoaded = false;
+          rethrow;
+        } finally {
+          _initializing = null;
+        }
+      });
+    } else {
+      report('Waiting for the shared Qwen model to finish loading…');
+    }
+    await _initializing!.timeout(
+      loadTimeout,
+      onTimeout: () => throw TimeoutException(
+        'Model loading is taking too long. Loading remains in progress; do not start another load.',
+        loadTimeout,
+      ),
+    );
   }
 
-  // ── INFERENCE ────────────────────────────────────────────────────────────────
+  void _checkUsable() {
+    if (_disposed) throw StateError('Local AI runtime has been disposed.');
+    if (_quarantined) {
+      throw StateError(
+        'The native model did not stop safely. Restart the app before using local AI again.',
+      );
+    }
+  }
 
-  /// Build a structured coaching prompt from measured speech/pose metrics.
   String buildCoachingPrompt({
     required SpeechMetrics speech,
     PoseMetrics? pose,
     required String speakingGoal,
   }) {
-    final buf = StringBuffer();
-    buf.writeln(
-      'You are HawkABuild AI Speech Coach running offline on this Android device.',
-    );
-    buf.writeln(
-      'Rules: Only use the measured data below. Never invent numbers.',
-    );
-    buf.writeln('Speaking Goal: $speakingGoal');
-    buf.writeln(
-      'Measured Speech Rate: ${speech.wordsPerMinute.toStringAsFixed(1)} WPM',
-    );
-    buf.writeln('Word Count: ${speech.wordCount}');
-    buf.writeln(
-      'Filler Words: ${speech.totalFillers} (${speech.fillerOccurrences})',
-    );
+    final buf = StringBuffer()
+      ..writeln('Use only these measured results; do not invent numbers.')
+      ..writeln('Goal: $speakingGoal')
+      ..writeln('Rate: ${speech.wordsPerMinute.toStringAsFixed(1)} WPM')
+      ..writeln('Words: ${speech.wordCount}')
+      ..writeln('Detected fillers: ${speech.totalFillers}');
     if (pose != null && pose.isPersonInFrame) {
-      buf.writeln('Body Sway: ${pose.bodySwayCm.toStringAsFixed(1)} cm');
-      buf.writeln('Posture Score: ${pose.postureScore.toStringAsFixed(0)}/100');
-      buf.writeln(
-        'Hand Gesture Score: ${pose.handGestureActivityScore.toStringAsFixed(0)}/100',
-      );
+      buf
+        ..writeln(
+          'Posture heuristic: ${pose.postureScore.toStringAsFixed(0)}/100',
+        )
+        ..writeln(
+          'Gesture activity: ${pose.handGestureActivityScore.toStringAsFixed(0)}/100',
+        );
     }
-    buf.writeln(
-      '\nProvide a focused 2-3 sentence coaching tip for improving delivery.',
-    );
+    buf.writeln('Give 2-3 concise sentences of actionable speaking advice.');
     return buf.toString();
   }
 
-  /// Stream tokens from Qwen3 for any prompt (chat mode with ChatML template).
   Stream<String> generateStream({
     required String userMessage,
     List<ChatMessage> conversationHistory = const [],
-    String systemMessage =
-        'You are HawkABuild AI, a helpful on-device assistant. Answer the '
-        'latest user message directly and stay on its exact topic. Start with '
-        'the answer to what was asked; do not substitute generic advice or '
-        'repeat earlier answers. Give public-speaking coaching only when the '
-        'user asks for it. Use the same language as the user, including '
-        'Filipino or Taglish. Be concise and do not invent details. '
-        'Answer directly without showing chain-of-thought. /no_think',
+    String systemMessage = defaultSystemMessage,
     int maxTokens = 512,
     double temperature = 0.7,
-  }) {
-    if (!_isLoaded) {
-      return Stream.error(
-        Exception('Model not loaded. Call initialize() first.'),
-      );
-    }
-
-    return _controller.generateChat(
-      messages: [
-        ChatMessage(role: 'system', content: systemMessage),
-        ...conversationHistory,
-        ChatMessage(role: 'user', content: userMessage),
-      ],
-      template: 'chatml',
+    InferenceCancellation? cancellation,
+  }) async* {
+    _checkUsable();
+    final messages = budgetMessages(
+      userMessage: userMessage,
+      history: conversationHistory,
+      systemMessage: systemMessage,
       maxTokens: maxTokens,
-      temperature: temperature,
-      topP: 0.9,
-      repeatPenalty: 1.1,
     );
+    if (!temperature.isFinite || temperature < 0 || temperature > 2) {
+      throw ArgumentError('Temperature must be between 0 and 2.');
+    }
+    final request = cancellation ?? InferenceCancellation();
+    request.throwIfCancelled();
+    final previous = _tail;
+    final release = Completer<void>();
+    _tail = previous.then((_) => release.future);
+    var started = false;
+    StreamSubscription<String>? subscription;
+    Timer? deadline;
+    StreamController<String>? output;
+    var finished = false;
+    var mustStop = false;
+    try {
+      await Future.any<void>([
+        previous,
+        request.whenCancelled.then(
+          (_) => throw const InferenceCancelledException(),
+        ),
+      ]);
+      request.throwIfCancelled();
+      _checkUsable();
+      await Future.any<void>([
+        initialize(),
+        request.whenCancelled.then(
+          (_) => throw const InferenceCancelledException(),
+        ),
+      ]);
+      request.throwIfCancelled();
+      _active = request;
+      output = StreamController<String>();
+      void fail(Object error) {
+        if (finished) return;
+        finished = true;
+        mustStop = true;
+        output!.addError(error);
+        unawaited(output.close());
+      }
+
+      unawaited(
+        request.whenCancelled.then((_) {
+          fail(const InferenceCancelledException());
+        }),
+      );
+      deadline = Timer(generationTimeout, () {
+        fail(
+          TimeoutException(
+            'Local AI exceeded its response time limit.',
+            generationTimeout,
+          ),
+        );
+      });
+      started = true;
+      subscription = _backend
+          .generate(
+            messages: messages,
+            maxTokens: maxTokens,
+            temperature: temperature,
+          )
+          .timeout(idleTimeout)
+          .listen(
+            (token) {
+              if (!finished) output!.add(token);
+            },
+            onError: (Object error, StackTrace stack) => fail(error),
+            onDone: () {
+              if (finished) return;
+              finished = true;
+              unawaited(output!.close());
+            },
+            cancelOnError: true,
+          );
+      yield* output.stream;
+    } catch (error) {
+      _lastError = error.toString();
+      rethrow;
+    } finally {
+      finished = true;
+      deadline?.cancel();
+      // Downstream subscription cancellation also stops native work.
+      if (started && (mustStop || !output!.isClosed)) {
+        try {
+          await _backend.stop().timeout(stopTimeout);
+        } catch (error) {
+          _quarantined = true;
+          _lastError = 'Native stop failed: $error';
+        }
+      }
+      await subscription?.cancel();
+      if (output != null && !output.isClosed) unawaited(output.close());
+      if (identical(_active, request)) _active = null;
+      release.complete();
+    }
   }
 
-  /// Collect the full streaming response into one string.
   Future<String> generateResponse(
     String prompt, {
     List<ChatMessage> conversationHistory = const [],
+    String systemMessage = defaultSystemMessage,
     int maxTokens = 512,
+    InferenceCancellation? cancellation,
   }) async {
-    if (!_isLoaded) {
-      return 'Local LLM is not loaded yet. Please initialize the model first.';
-    }
-
-    final buf = StringBuffer();
-    final completer = Completer<String>();
-
-    generateStream(
+    final response = StringBuffer();
+    await for (final token in generateStream(
       userMessage: prompt,
       conversationHistory: conversationHistory,
+      systemMessage: systemMessage,
       maxTokens: maxTokens,
-    ).listen(
-      buf.write,
-      onDone: () {
-        if (!completer.isCompleted) {
-          completer.complete(stripThinking(buf.toString()));
-        }
-      },
-      onError: (e) {
-        if (!completer.isCompleted) completer.completeError(e);
-      },
-    );
-
-    return completer.future;
+      cancellation: cancellation,
+    )) {
+      response.write(token);
+    }
+    final cleaned = stripThinking(response.toString());
+    if (cleaned.isEmpty) {
+      throw StateError(
+        'The local model returned no usable answer. Try a shorter request.',
+      );
+    }
+    return cleaned;
   }
 
-  Future<void> stopGeneration() => _controller.stop();
+  Future<void> stopGeneration() async => _active?.cancel();
 
   Future<void> dispose() async {
-    await _controller.dispose();
-    _isLoaded = false;
+    _disposed = true;
+    _active?.cancel();
+    await _tail;
+    // Do not dispose native state while a timed-out load is still running.
+    try {
+      await _initializing;
+    } finally {
+      await _backend.dispose();
+      _isLoaded = false;
+    }
   }
 }

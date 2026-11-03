@@ -1,7 +1,9 @@
 # PipSpeak (hawkabuild)
 
-Frontend-only Flutter (Material 3) app that helps students practice public
-speaking — converted from Google Stitch designs with mock data.
+Offline-first Flutter (Material 3) public-speaking practice app with local
+Whisper transcription, ML Kit pose analysis, optional Qwen coaching, SQLite
+storage, and Firebase account/progress synchronization. Native AI requires a
+supported Android device and separately prepared model weights.
 
 ## Run
 
@@ -48,18 +50,21 @@ flutter build apk --debug --target-platform android-x64     # x64 emulators
 - `lib/core/services` — service interfaces + mock implementations (auth, permissions, speech analysis, documents)
 - `lib/core/widgets` — reusable Pip widgets (buttons, cards, chips, fields, mascot, live meters, star/level)
 - `lib/features/*/presentation` — screens: auth, onboarding, home (bottom nav), practice, feedback, documents, progress, profile, settings
-- `lib/data/`, `lib/features/ai/` — stub TODOs for backend/AI integration
+- `lib/data/` — local-first Drift repositories and Firestore synchronization
+- `lib/features/ai/` — local model loading, speech/pose analysis, and coaching
 
-## Mocked
+## Local AI setup and verification
 
-Auth, camera/mic permissions, live telemetry, speech analysis (Whisper/MediaPipe/LLM),
-document parsing, persistence. Swap the `Mock*Service` classes for real
-implementations to go live.
+Prepare verified weights before building. See [docs/local-models.md](docs/local-models.md)
+and [docs/ai-runtime-validation.md](docs/ai-runtime-validation.md) for setup,
+regression checks, platform limits, and physical-device acceptance checks.
+Legacy mock services and development dashboards remain in the repository; the
+production providers use Whisper, ML Kit, and the local document/feedback services.
 
 ## Notes
 
 - Light & dark themes; ThemeMode switch in Settings.
-- Business rule (mock): stars earned only on improvement; level n needs 10*n stars.
+- Business rule: stars earned only on improvement; level n needs 10*n stars.
 
 ## Accounts, storage and sync
 

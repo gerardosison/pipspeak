@@ -48,90 +48,129 @@ class ScriptAnalysisScreen extends ConsumerWidget {
               children: [
                 // Metadata card
                 PipCard(
-                  child: Row(children: [
-                    const IconDisc(
-                        icon: Icons.description_outlined, size: 52),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                  child: Row(
+                    children: [
+                      const IconDisc(
+                        icon: Icons.description_outlined,
+                        size: 52,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(doc.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: text.labelLarge?.copyWith(
-                                    color: scheme.onSurface)),
+                            Text(
+                              doc.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: text.labelLarge?.copyWith(
+                                color: scheme.onSurface,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Text(
-                                '${doc.wordCount} words • ~${doc.estimatedMinutes} min read',
-                                style: text.bodySmall?.copyWith(
-                                    color: scheme.onSurfaceVariant)),
+                              '${doc.wordCount} words • ~${doc.estimatedMinutes} min read',
+                              style: text.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                          ]),
-                    ),
-                    const PipBadge(
-                      label: 'On-device Qwen',
-                      icon: Icons.offline_bolt_outlined,
-                    ),
-                  ]),
+                          ],
+                        ),
+                      ),
+                      const PipBadge(
+                        label: 'On-device Qwen',
+                        icon: Icons.offline_bolt_outlined,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
+                if (doc.keySections.isNotEmpty) ...[
+                  Text(doc.keySections.join('\n'), style: text.bodySmall),
+                  const SizedBox(height: 12),
+                ],
                 const SectionHeader(title: 'Covered topics'),
                 const SizedBox(height: 8),
                 PipCard(
                   padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                    for (final s in doc.coveredTopics)
-                      _bulletRow(context, Icons.check_circle,
-                          AppColors.tertiaryFixed, s),
-                    if (doc.coveredTopics.isEmpty)
-                      const Text('Walang covered topics na naibalik ng model.'),
-                  ]),
+                  child: Column(
+                    children: [
+                      for (final s in doc.coveredTopics)
+                        _bulletRow(
+                          context,
+                          Icons.check_circle,
+                          AppColors.tertiaryFixed,
+                          s,
+                        ),
+                      if (doc.coveredTopics.isEmpty)
+                        const Text(
+                          'Walang covered topics na naibalik ng model.',
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const SectionHeader(title: 'Gaps to fix'),
                 const SizedBox(height: 8),
                 PipCard(
                   padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                    for (final s in doc.missingOrWeakTopics)
-                      _bulletRow(context, Icons.lightbulb,
-                          AppColors.secondaryFixed, s),
-                    for (final s in doc.speechImprovements)
-                      _bulletRow(context, Icons.tips_and_updates,
-                          AppColors.secondaryContainer, s),
-                    if (doc.missingOrWeakTopics.isEmpty &&
-                        doc.speechImprovements.isEmpty)
-                      const Text('Walang specific na gaps o suggestions na naibalik.'),
-                  ]),
+                  child: Column(
+                    children: [
+                      for (final s in doc.missingOrWeakTopics)
+                        _bulletRow(
+                          context,
+                          Icons.lightbulb,
+                          AppColors.secondaryFixed,
+                          s,
+                        ),
+                      for (final s in doc.speechImprovements)
+                        _bulletRow(
+                          context,
+                          Icons.tips_and_updates,
+                          AppColors.secondaryContainer,
+                          s,
+                        ),
+                      if (doc.missingOrWeakTopics.isEmpty &&
+                          doc.speechImprovements.isEmpty)
+                        const Text(
+                          'Walang specific na gaps o suggestions na naibalik.',
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 PrimaryButton(
-                    label: 'Practice this speech',
-                    icon: Icons.mic_external_on,
-                    onPressed: () => context.push(
-                      AppRoutes.practiceSetup,
-                      extra: doc.title,
-                    )),
+                  label: 'Practice this speech',
+                  icon: Icons.mic_external_on,
+                  onPressed: () =>
+                      context.push(AppRoutes.practiceSetup, extra: doc.title),
+                ),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: PipSecondaryButton(
+                Row(
+                  children: [
+                    Expanded(
+                      child: PipSecondaryButton(
                         label: 'Re-analyze',
                         icon: Icons.refresh,
-                        onPressed: () => context.pop()),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: PipGhostButton(
+                        onPressed: () => context.pop(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: PipGhostButton(
                         label: 'Export cue cards',
                         icon: Icons.style,
                         onPressed: () => ScaffoldMessenger.of(context)
-                                .showSnackBar(const SnackBar(
-                                    content: Text(
-                                        'Cue cards coming soon (mock)')))),
-                  ),
-                ]),
+                            .showSnackBar(
+                              const SnackBar(
+                                content: Text('Cue cards coming soon (mock)'),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -141,29 +180,36 @@ class ScriptAnalysisScreen extends ConsumerWidget {
   }
 
   Widget _bulletRow(
-      BuildContext context, IconData icon, Color bg, String body) {
+    BuildContext context,
+    IconData icon,
+    Color bg,
+    String body,
+  ) {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration:
-              BoxDecoration(shape: BoxShape.circle, color: bg),
-          child: Icon(icon, size: 15, color: AppColors.navy),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(body,
-                style: text.bodyMedium
-                    ?.copyWith(color: scheme.onSurface)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
+            child: Icon(icon, size: 15, color: AppColors.navy),
           ),
-        ),
-      ]),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                body,
+                style: text.bodyMedium?.copyWith(color: scheme.onSurface),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -16,27 +16,39 @@ class WhisperContext private constructor(private var ptr: Long) {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     )
 
+    data class Segment(val startSeconds: Double, val endSeconds: Double, val text: String)
+    data class Transcription(val text: String, val segments: List<Segment>, val language: String)
+
     suspend fun transcribeData(
         data: FloatArray,
         printTimestamp: Boolean = true,
         language: String = "auto",
-    ): String = withContext(scope.coroutineContext) {
-        require(ptr != 0L)
-        val numThreads = WhisperCpuConfig.preferredThreadCount.coerceAtMost(4)
-        Log.d(LOG_TAG, "Selecting $numThreads threads")
-        WhisperLib.fullTranscribe(ptr, numThreads, data, language)
-        val textCount = WhisperLib.getTextSegmentCount(ptr)
-        return@withContext buildString {
-            for (i in 0 until textCount) {
-                if (printTimestamp) {
-                    val textTimestamp = "[${toTimestamp(WhisperLib.getTextSegmentT0(ptr, i))} --> ${toTimestamp(WhisperLib.getTextSegmentT1(ptr, i))}]"
-                    val textSegment = WhisperLib.getTextSegment(ptr, i)
-                    append("$textTimestamp: $textSegment\n")
-                } else {
-                    append(WhisperLib.getTextSegment(ptr, i))
-                }
-            }
+    ): String {
+        val result = transcribeWithSegments(data, language)
+        if (!printTimestamp) return result.text
+        return result.segments.joinToString("\n") {
+            "[${toTimestamp((it.startSeconds * 100).toLong())} --> " +
+                "${toTimestamp((it.endSeconds * 100).toLong())}] ${it.text}"
         }
+    }
+
+    suspend fun transcribeWithSegments(
+        data: FloatArray,
+        language: String = "auto",
+    ): Transcription = withContext(scope.coroutineContext) {
+        require(ptr != 0L) { "Whisper context has been released." }
+        require(data.isNotEmpty()) { "Whisper received no audio samples." }
+        val numThreads = WhisperCpuConfig.preferredThreadCount.coerceIn(1, 4)
+        val status = WhisperLib.fullTranscribe(ptr, numThreads, data, language)
+        check(status == 0) { "Whisper inference failed (status $status)." }
+        val segments = (0 until WhisperLib.getTextSegmentCount(ptr)).map { i ->
+            Segment(
+                startSeconds = WhisperLib.getTextSegmentT0(ptr, i) / 100.0,
+                endSeconds = WhisperLib.getTextSegmentT1(ptr, i) / 100.0,
+                text = WhisperLib.getTextSegment(ptr, i).trim(),
+            )
+        }
+        Transcription(segments.joinToString(" ") { it.text }.trim(), segments, WhisperLib.getDetectedLanguage(ptr))
     }
 
     suspend fun benchMemory(nthreads: Int): String = withContext(scope.coroutineContext) {
@@ -110,7 +122,8 @@ private class WhisperLib {
             numThreads: Int,
             audioData: FloatArray,
             language: String,
-        )
+        ): Int
+        external fun getDetectedLanguage(contextPtr: Long): String
         external fun getTextSegmentCount(contextPtr: Long): Int
         external fun getTextSegment(contextPtr: Long, index: Int): String
         external fun getTextSegmentT0(contextPtr: Long, index: Int): Long

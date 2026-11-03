@@ -36,26 +36,34 @@ class _RehearsalAnalysisScreenState
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final history = ref.watch(sessionHistoryProvider);
-    final session =
-        widget.session ??
-        (history.isNotEmpty
-            ? history.first
-            : PracticeSession(
-                id: 'empty',
-                date: DateTime.now(),
-                title: 'Practice session',
-                duration: Duration.zero,
-                avgWpm: 0,
-                fillerCount: 0,
-                eyeContactPct: 0,
-                paceScore: 0,
-                starsEarned: 0,
-                improved: false,
-              ));
-    final report = widget.session == null
-        ? ref.watch(lastReportProvider)
-        : ref.watch(sessionReportProvider(session.id)).valueOrNull;
-    final pose = ref.watch(lastPoseMetricsProvider);
+    if (widget.session == null && history.isEmpty) {
+      return Scaffold(
+        appBar: pipAppBar(context, title: 'Rehearsal Analysis'),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'No saved practice results yet. Complete a practice session to see your measured feedback.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+    final session = widget.session ?? history.first;
+    final report = ref.watch(sessionReportProvider(session.id)).valueOrNull;
+    // A history entry must use its own saved measurements, never the last
+    // in-memory camera session, which may belong to a different practice.
+    final matchingRecords =
+        (ref.watch(practiceRecordsProvider).valueOrNull ?? []).where(
+          (record) => record.id == session.id,
+        );
+    final savedRecord = matchingRecords.isEmpty ? null : matchingRecords.first;
+    final posture = savedRecord?.postureScore;
+    final swayPercent = savedRecord?.bodySwayCm == null
+        ? null
+        : savedRecord!.bodySwayCm! /
+              2.0; // Legacy proxy = normalized sway × 200.
 
     final score = session.paceScore;
     final mins = session.duration.inMinutes;
@@ -170,29 +178,21 @@ class _RehearsalAnalysisScreenState
                   ),
                   const SizedBox(height: 10),
                   _metricBar(
-                    'Posture',
-                    (pose?.postureScore ?? 0) / 100,
-                    pose == null || !pose.isPersonInFrame
-                        ? 'Unavailable'
-                        : '${pose.postureScore.round()}/100',
+                    'Body alignment',
+                    (posture ?? 0) / 100,
+                    posture == null ? 'Unavailable' : '${posture.round()}/100',
                     AppColors.secondaryContainer,
-                    pose == null || !pose.isPersonInFrame
-                        ? 'No camera measurement'
-                        : pose.qualityLimitations.isEmpty
-                        ? 'Measured from camera frames'
-                        : pose.qualityLimitations.first,
+                    posture == null ? 'No saved camera measurement' : 'Saved camera-based heuristic; eye contact is not measured',
                   ),
                   const SizedBox(height: 10),
                   _metricBar(
-                    'Body sway',
-                    ((pose?.bodySwayCm ?? 0) / 15).clamp(0.0, 1.0),
-                    pose == null || !pose.isPersonInFrame
+                    'Torso variation',
+                    ((swayPercent ?? 0) / 7.5).clamp(0.0, 1.0),
+                    swayPercent == null
                         ? 'Unavailable'
-                        : '${pose.bodySwayCm.toStringAsFixed(1)} cm',
+                        : '${swayPercent.toStringAsFixed(1)}% frame width',
                     AppColors.tertiaryFixed,
-                    pose == null || !pose.isPersonInFrame
-                        ? 'No camera measurement'
-                        : 'Measured from camera frames',
+                    swayPercent == null ? 'No saved camera measurement' : 'Image-relative estimate; camera movement affects this value',
                   ),
                 ] else ...[
                   if (report == null ||
@@ -228,8 +228,7 @@ class _RehearsalAnalysisScreenState
                         child: Text(
                           report?.llmResponse?.isNotEmpty == true
                               ? report!.llmResponse!
-                              : report?.summary ??
-                                    'Wala pang local AI feedback para sa session na ito.',
+                              : report?.summary ?? 'Wala pang local AI feedback para sa session na ito.',
                           style: text.bodyMedium?.copyWith(
                             color: AppColors.onSecondaryFixedVariant,
                           ),

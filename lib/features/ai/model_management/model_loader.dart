@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 class ModelAssetInfo {
   final String id;
   final String name;
@@ -19,6 +21,11 @@ class ModelAssetInfo {
 }
 
 class ModelLoader {
+  ModelLoader({Future<Map<String, bool>> Function()? probe})
+    : _probe = probe ?? _probeNative;
+
+  final Future<Map<String, bool>> Function() _probe;
+
   static const whisperModel = ModelAssetInfo(
     id: 'asr_whisper_base',
     name: 'OpenAI Whisper Base Multilingual',
@@ -31,30 +38,47 @@ class ModelLoader {
 
   static const mediaPipeModel = ModelAssetInfo(
     id: 'vision_pose_lite',
-    name: 'MediaPipe Pose Landmarker Lite',
-    fileName: 'pose_landmarker_lite.task',
-    format: 'TASK (float16)',
-    sizeMb: '9.2 MB',
+    name: 'Google ML Kit Pose Detection',
+    fileName: 'Bundled Android SDK model (no .task file)',
+    format: 'SDK',
+    sizeMb: 'SDK managed',
     isBundled: true,
-    license: 'Apache 2.0',
+    license: 'Google ML Kit Terms of Service',
   );
 
   static const qwenLlmModel = ModelAssetInfo(
     id: 'llm_qwen3_06b',
-    name: 'Qwen3 0.6B Instruct GGUF',
+    name: 'Qwen3 0.6B GGUF',
     fileName: 'qwen3-0.6b-q4_k_m.gguf',
     format: 'GGUF (Q4_K_M)',
     sizeMb: '380 MB',
-    isBundled: false, // Optional local enhancement
+    isBundled: true, // Packaged by the verified model preparation step.
     license: 'Apache 2.0',
   );
 
   Future<Map<String, bool>> checkAllModelsReady() async {
-    // Check bundled asset readiness
+    final status = await _probe();
     return {
-      whisperModel.id: true,
-      mediaPipeModel.id: true,
-      qwenLlmModel.id: false, // Optional
+      whisperModel.id: status['whisper'] == true,
+      // A legacy MediaPipe asset probe is not evidence of a ready ML Kit
+      // detector. Native/runtime callers must report the actual mlkit status.
+      mediaPipeModel.id: status['mlkitPose'] == true,
+      qwenLlmModel.id: status['llm'] == true,
     };
+  }
+
+  static Future<Map<String, bool>> _probeNative() async {
+    try {
+      final result = await const MethodChannel('com.hawkabuild.app/ai')
+          .invokeMapMethod<String, dynamic>('checkModelStatus');
+      return {
+        for (final entry in (result ?? <String, dynamic>{}).entries)
+          entry.key: entry.value == true,
+      };
+    } on PlatformException {
+      return const {};
+    } on MissingPluginException {
+      return const {};
+    }
   }
 }

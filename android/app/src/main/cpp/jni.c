@@ -67,7 +67,7 @@ void inputStreamClose(void * ctx) {
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_whispercppdemo_whisper_WhisperLib_00024Companion_initContextFromInputStream(
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_initContextFromInputStream(
         JNIEnv *env, jobject thiz, jobject input_stream) {
     UNUSED(thiz);
 
@@ -161,7 +161,7 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
     whisper_free(context);
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jint JNICALL
 Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads,
         jfloatArray audio_data, jstring language_str) {
@@ -173,9 +173,9 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
 
     // The below adapted from the Objective-C iOS sample
     struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    params.print_realtime = true;
+    params.print_realtime = false;
     params.print_progress = false;
-    params.print_timestamps = true;
+    params.print_timestamps = false;
     params.print_special = false;
     params.translate = false;
     params.language = language_chars;
@@ -186,14 +186,20 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
 
     whisper_reset_timings(context);
 
-    LOGI("About to run whisper_full");
-    if (whisper_full(context, params, audio_data_arr, audio_data_length) != 0) {
-        LOGI("Failed to run the model");
-    } else {
-        whisper_print_timings(context);
-    }
+    // Propagate failures instead of exposing stale segments from a previous run.
+    const int status = whisper_full(context, params, audio_data_arr, audio_data_length);
     (*env)->ReleaseFloatArrayElements(env, audio_data, audio_data_arr, JNI_ABORT);
     (*env)->ReleaseStringUTFChars(env, language_str, language_chars);
+    return status;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_whispercpp_whisper_WhisperLib_00024Companion_getDetectedLanguage(
+        JNIEnv *env, jobject thiz, jlong context_ptr) {
+    UNUSED(thiz);
+    struct whisper_context *context = (struct whisper_context *) context_ptr;
+    const char *language = whisper_lang_str(whisper_full_lang_id(context));
+    return (*env)->NewStringUTF(env, language != NULL ? language : "unknown");
 }
 
 JNIEXPORT jint JNICALL

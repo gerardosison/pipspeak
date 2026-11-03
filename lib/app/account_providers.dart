@@ -167,7 +167,7 @@ PracticeSession practiceSessionFromRecord(
     duration: Duration(seconds: record.durationSeconds),
     avgWpm: (record.wordsPerMinute ?? 0).round(),
     fillerCount: record.fillerCount ?? 0,
-    eyeContactPct: (record.postureScore ?? 0).round(),
+    eyeContactPct: null, // Pose landmarks do not measure eye contact.
     paceScore: (record.overallScore ?? 0).round(),
     starsEarned: record.starsEarned,
     improved: record.starsEarned > 0,

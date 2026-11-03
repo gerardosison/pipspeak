@@ -1,19 +1,30 @@
 import 'dart:io';
+
 import 'package:flutter/services.dart';
+
 import '../../../core/models/speech_metrics.dart';
 import '../../../core/services/speech_recognition_service.dart';
+import 'speech_metrics_calculator.dart';
 
 /// Offline Android transcription through the bundled whisper.cpp JNI runtime.
 class WhisperSpeechService implements SpeechRecognitionService {
   static const MethodChannel _channel = MethodChannel('com.hawkabuild.app/ai');
   bool _isLoaded = false;
+  Future<void>? _initialization;
 
   @override
   Future<bool> isModelLoaded() async {
     return _isLoaded;
   }
 
-  Future<void> initializeModel() async {
+  Future<void> initializeModel() {
+    if (_isLoaded) return Future.value();
+    return _initialization ??= _initialize().whenComplete(() {
+      _initialization = null;
+    });
+  }
+
+  Future<void> _initialize() async {
     try {
       _isLoaded =
           await _channel.invokeMethod<bool>('initializeWhisper') ?? false;
@@ -41,7 +52,7 @@ class WhisperSpeechService implements SpeechRecognitionService {
     if (audioPath.isEmpty) {
       return TranscriptionResult.failure('Audio file path is empty.');
     }
-    if (!File(audioPath).existsSync()) {
+    if (!await File(audioPath).exists()) {
       return TranscriptionResult.failure(
         'Audio file does not exist: $audioPath',
       );
@@ -53,7 +64,7 @@ class WhisperSpeechService implements SpeechRecognitionService {
         'transcribe',
         {'audioPath': audioPath, 'language': language},
       );
-      final text = response?['text'] as String? ?? '';
+      final text = (response?['text'] as String? ?? '').trim();
       final duration = (response?['durationSeconds'] as num?)?.toDouble() ?? 0;
       if (text.isEmpty) {
         return TranscriptionResult.failure('Whisper returned no speech text.');
@@ -62,6 +73,7 @@ class WhisperSpeechService implements SpeechRecognitionService {
         text: text,
         durationSeconds: duration,
         detectedLanguage: response?['language'] as String? ?? language,
+        segments: _parseSegments(response?['segments'], duration),
       );
     } on PlatformException catch (error) {
       return TranscriptionResult.failure(
@@ -81,40 +93,39 @@ class WhisperSpeechService implements SpeechRecognitionService {
     required TranscriptionResult transcription,
     required double durationSeconds,
   }) {
-    if (!transcription.isSuccess || transcription.text.isEmpty) {
-      return SpeechMetrics.empty();
-    }
-
-    final words = transcription.text.trim().split(RegExp(r'\s+'));
-    final int wordCount = words.length;
-    final double durationMin = durationSeconds > 0
-        ? durationSeconds / 60.0
-        : 0.5;
-    final double wpm = durationMin > 0 ? wordCount / durationMin : 0.0;
-
-    // Count filler words
-    final lowerText = transcription.text.toLowerCase();
-    final RegExp umRegex = RegExp(r'\bum\b');
-    final RegExp uhRegex = RegExp(r'\buh\b');
-    final RegExp likeRegex = RegExp(r'\blike\b');
-
-    int umCount = umRegex.allMatches(lowerText).length;
-    int uhCount = uhRegex.allMatches(lowerText).length;
-    int likeCount = likeRegex.allMatches(lowerText).length;
-
-    int totalFillers = umCount + uhCount + likeCount;
-
-    return SpeechMetrics(
-      transcript: transcription.text,
-      wordCount: wordCount,
-      speechDurationSeconds: durationSeconds,
-      wordsPerMinute: double.parse(wpm.toStringAsFixed(1)),
-      fillerOccurrences: {'um': umCount, 'uh': uhCount, 'like': likeCount},
-      totalFillers: totalFillers,
-      pauseCount: transcription.segments.length > 1
-          ? transcription.segments.length - 1
-          : 1,
-      avgPauseDurationSeconds: 1.2,
+    return SpeechMetricsCalculator().calculate(
+      transcription: transcription,
+      durationSeconds: durationSeconds,
     );
+  }
+
+  static List<TranscriptSegment> _parseSegments(Object? raw, double duration) {
+    if (raw is! List) return const [];
+    final segments = <TranscriptSegment>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final start = entry['startSeconds'];
+      final end = entry['endSeconds'];
+      final text = entry['text'];
+      if (start is! num ||
+          end is! num ||
+          text is! String ||
+          !start.isFinite ||
+          !end.isFinite ||
+          start < 0 ||
+          end < start ||
+          (duration > 0 && end > duration + 0.05)) {
+        continue;
+      }
+      segments.add(
+        TranscriptSegment(
+          id: segments.length,
+          startSeconds: start.toDouble(),
+          endSeconds: end.toDouble(),
+          text: text,
+        ),
+      );
+    }
+    return List.unmodifiable(segments);
   }
 }

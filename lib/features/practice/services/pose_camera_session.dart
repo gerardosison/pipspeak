@@ -21,6 +21,12 @@ class PoseCameraSession {
   CameraDescription? _cameraDescription;
   bool _processingFrame = false;
   bool _isRunning = false;
+  bool _disposed = false;
+  bool _unusable = false;
+  Future<void>? _pendingFrame;
+
+  static const _stopTimeout = Duration(seconds: 5);
+  static const _frameTimeout = Duration(seconds: 10);
 
   String? lastFrameError;
 
@@ -43,6 +49,9 @@ class PoseCameraSession {
     CameraController controller,
     CameraDescription camera,
   ) async {
+    if (_disposed || _unusable) {
+      throw StateError('Reopen practice before starting the camera again.');
+    }
     if (_isRunning) throw StateError('Pose camera session is already running.');
     if (!controller.value.isInitialized) {
       throw StateError('Initialize the camera before starting pose tracking.');
@@ -71,26 +80,60 @@ class PoseCameraSession {
   /// Stops camera-frame collection and returns the computed practice metrics.
   /// The camera preview controller itself remains owned by the caller.
   Future<PoseMetrics> stop(String sessionId) async {
+    _isRunning = false; // Ignore any final camera callback immediately.
     final controller = _cameraController;
-    if (controller != null && controller.value.isStreamingImages) {
-      await controller.stopImageStream();
+    try {
+      if (controller != null && controller.value.isStreamingImages) {
+        await controller.stopImageStream().timeout(_stopTimeout);
+      }
+    } on TimeoutException {
+      _unusable = true;
+      throw StateError(
+        'The camera did not stop in time. Reopen practice to retry.',
+      );
+    } finally {
+      _cameraController = null;
+      _cameraDescription = null;
     }
-    _isRunning = false;
-    _cameraController = null;
-    _cameraDescription = null;
-    while (_processingFrame) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+    try {
+      await _pendingFrame?.timeout(_frameTimeout);
+    } on TimeoutException {
+      _unusable = true;
+      throw StateError(
+        'Pose detection did not finish in time. Reopen practice to retry.',
+      );
     }
     return _poseService.finishSession(sessionId);
   }
 
   Future<void> dispose() async {
-    if (_isRunning && _cameraController?.value.isStreamingImages == true) {
-      await _cameraController!.stopImageStream();
-    }
+    if (_disposed) return;
+    _disposed = true;
     _isRunning = false;
+    final controller = _cameraController;
     _cameraController = null;
     _cameraDescription = null;
+    try {
+      if (controller?.value.isStreamingImages == true) {
+        await controller!.stopImageStream().timeout(_stopTimeout);
+      }
+    } on Object catch (error) {
+      lastFrameError = 'Could not stop camera stream: $error';
+    }
+    final pending = _pendingFrame;
+    try {
+      await pending?.timeout(_frameTimeout);
+    } on TimeoutException {
+      // Closing ML Kit while processImage is active can race native resources.
+      // Release it once that native call actually returns, even after the UI
+      // has gone away. A Dart timeout cannot cancel the native operation.
+      unawaited(
+        pending!.then((_) => _poseService.dispose()).catchError((Object error) {
+          lastFrameError = 'Could not close pose detector: $error';
+        }),
+      );
+      return;
+    }
     await _poseService.dispose();
   }
 
@@ -104,7 +147,9 @@ class PoseCameraSession {
     }
 
     _processingFrame = true;
-    unawaited(_process(inputImage));
+    final pending = _process(inputImage);
+    _pendingFrame = pending;
+    unawaited(pending.whenComplete(() => _pendingFrame = null));
   }
 
   Future<void> _process(InputImage image) async {

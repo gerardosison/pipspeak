@@ -76,13 +76,13 @@ flutter build apk --release          # or: flutter build appbundle --release (Pl
 
 ## 5. Local AI models
 
-Models are not committed (size). Place them before building:
+Models are not committed (size). Prepare verified weights and manifests before building; see [docs/local-models.md](docs/local-models.md):
 
 | Model | Path | License |
 | --- | --- | --- |
 | Whisper `ggml-base-q5_1.bin` | `assets/models/whisper/` (not committed) | MIT |
 | Qwen3 `qwen3-0.6b-q4_k_m.gguf` | `assets/models/llm/` (not committed) | Apache-2.0 |
-| MediaPipe `pose_landmarker_lite.task` | `android/app/src/main/assets/mediapipe/` (committed) | Apache-2.0 |
+| Google ML Kit Pose Detection | Model supplied by Android SDK dependency; no `.task` required | Google ML Kit terms |
 
 If the LLM is missing, feedback falls back to rule-based coaching from the measured metrics.
 If Whisper is missing, the practice session shows an error instead of fake feedback.

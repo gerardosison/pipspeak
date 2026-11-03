@@ -1,7 +1,9 @@
-import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+
 import '../../../core/models/pose_metrics.dart';
 import '../../../core/services/pose_analysis_service.dart';
+import 'pose_metrics_calculator.dart';
 
 /// On-device pose detection for camera frames using Google ML Kit.
 ///
@@ -55,13 +57,23 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
       );
     }
     final poses = await _detector!.processImage(image);
+    // Android ML Kit reports points in the rotation-corrected image, whereas
+    // InputImage metadata still describes the original camera-buffer size.
+    final rotation = image.metadata!.rotation;
+    final swapsAxes =
+        defaultTargetPlatform == TargetPlatform.android &&
+        (rotation == InputImageRotation.rotation90deg ||
+            rotation == InputImageRotation.rotation270deg);
+    final width = swapsAxes ? size.height : size.width;
+    final height = swapsAxes ? size.width : size.height;
     final frame = PoseFrameData(
       timestampMs: timestampMs ?? DateTime.now().millisecondsSinceEpoch,
       landmarks: poses.isEmpty
           ? const {}
-          : _toMediaPipeIndices(poses.first, size.width, size.height),
+          : _toMediaPipeIndices(poses.first, width, height),
       isPersonDetected: poses.isNotEmpty,
       hasMultiplePeople: poses.length > 1,
+      imageAspectRatio: width / height,
     );
     _activeFrames.add(frame);
     return frame;
@@ -103,14 +115,23 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
       final landmark = pose.landmarks[entry.key];
       if (landmark == null) continue;
       result[entry.value] = PoseLandmarkPoint(
-        x: (landmark.x / width).clamp(0.0, 1.0),
-        y: (landmark.y / height).clamp(0.0, 1.0),
+        x: landmark.x / width,
+        y: landmark.y / height,
         z: landmark.z,
         visibility: landmark.likelihood,
       );
     }
     return result;
   }
+
+  static bool _usable(PoseLandmarkPoint point) =>
+      point.isVisible &&
+      point.x.isFinite &&
+      point.y.isFinite &&
+      point.x >= 0 &&
+      point.x <= 1 &&
+      point.y >= 0 &&
+      point.y <= 1;
 
   @override
   Future<PoseMetrics> analyzeFrames(List<PoseFrameData> frames) async {
@@ -137,8 +158,14 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
         outOfFrameCount++;
         continue;
       }
-      if (f.hasMultiplePeople) multiplePeopleFrames++;
-      if (f.isOccluded) occludedFrames++;
+      if (f.hasMultiplePeople) {
+        multiplePeopleFrames++;
+        continue; // Never score an arbitrary person from a multi-person frame.
+      }
+      if (f.isOccluded) {
+        occludedFrames++;
+        continue;
+      }
 
       final lm = f.landmarks;
       final leftShoulder = lm[11];
@@ -147,8 +174,13 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
 
       if (leftShoulder == null ||
           rightShoulder == null ||
-          !leftShoulder.isVisible ||
-          !rightShoulder.isVisible) {
+          !_usable(leftShoulder) ||
+          !_usable(rightShoulder) ||
+          !f.imageAspectRatio.isFinite ||
+          f.imageAspectRatio <= 0 ||
+          (rightShoulder.x - leftShoulder.x).abs() +
+                  (rightShoulder.y - leftShoulder.y).abs() <
+              0.02) {
         occludedFrames++;
         continue;
       }
@@ -165,15 +197,13 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
         centerCount++;
       }
 
-      // Posture alignment
-      double dx = rightShoulder.x - leftShoulder.x;
-      double dy = rightShoulder.y - leftShoulder.y;
-      double angleDeg = (math.atan2(dy, dx).abs() * 180 / math.pi);
-      double framePosture = math.max(0.0, 100.0 - (angleDeg * 5.0));
-      if (nose != null && nose.isVisible) {
-        double headOff = (nose.x - torsoX).abs();
-        framePosture = math.max(0.0, framePosture - (headOff * 80.0));
-      }
+      // Normalize both axes to frame-height units so non-square frames do
+      // not distort shoulder tilt. Shoulder ordering/mirroring is irrelevant.
+      final framePosture = PoseMetricsCalculator().calculatePostureScore(
+        shoulderDx: (rightShoulder.x - leftShoulder.x) * f.imageAspectRatio,
+        shoulderDy: rightShoulder.y - leftShoulder.y,
+        headOffset: nose != null && _usable(nose) ? nose.x - torsoX : 0,
+      );
       postureScores.add(framePosture);
 
       // Hand gesture estimation
@@ -181,12 +211,12 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
       final rightWrist = lm[16];
       double gesture = 0.0;
       if (leftWrist != null &&
-          leftWrist.isVisible &&
+          _usable(leftWrist) &&
           leftWrist.y < leftShoulder.y + 0.15) {
         gesture += 50.0;
       }
       if (rightWrist != null &&
-          rightWrist.isVisible &&
+          _usable(rightWrist) &&
           rightWrist.y < rightShoulder.y + 0.15) {
         gesture += 50.0;
       }
@@ -199,13 +229,11 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
       );
     }
 
-    // Body Sway Calculation
-    double meanX =
-        torsoXPositions.reduce((a, b) => a + b) / torsoXPositions.length;
-    double varX =
-        torsoXPositions.fold(0.0, (s, x) => s + math.pow(x - meanX, 2)) /
-        torsoXPositions.length;
-    double swayCm = math.sqrt(varX) * 200.0;
+    // Image-relative variation only; camera movement and distance affect it.
+    final normalizedSway = PoseMetricsCalculator().calculateNormalizedSway(
+      torsoXPositions,
+    );
+    final legacySway = normalizedSway * 200;
 
     double avgPosture =
         postureScores.reduce((a, b) => a + b) / postureScores.length;
@@ -225,20 +253,33 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
     }
 
     AnalysisQuality quality = AnalysisQuality.high;
-    List<String> limitations = [];
-    if (validFrames < totalFrames * 0.6) {
+    List<String> limitations = [
+      'Sway is image-relative torso variation, not a distance in centimeters; '
+          'camera movement and subject distance affect it.',
+      'Posture and raised-hand scores are heuristics, not validated measures '
+          'of confidence, eye contact, or gesture quality.',
+    ];
+    if (validFrames < 5 || validFrames < totalFrames * 0.6) {
       quality = AnalysisQuality.low;
       limitations.add(
-        'Fewer than 60% of frames contained full body landmarks.',
+        'Too few reliable shoulder observations for a strong movement estimate.',
       );
     } else if (occludedFrames > 0) {
       quality = AnalysisQuality.medium;
-      limitations.add('$occludedFrames frames had partial occlusion.');
+      limitations.add(
+        '$occludedFrames frames had unusable shoulder landmarks.',
+      );
     }
 
-    if (swayCm > 8.0) {
+    if (normalizedSway > 0.04) {
       limitations.add(
-        'Excessive side-to-side body sway observed (${swayCm.toStringAsFixed(1)} cm).',
+        'Torso position varied by ${(normalizedSway * 100).toStringAsFixed(1)}% '
+        'of image width; this may include camera motion.',
+      );
+    }
+    if (multiplePeopleFrames > 0) {
+      limitations.add(
+        '$multiplePeopleFrames multi-person frames were excluded.',
       );
     }
 
@@ -246,7 +287,7 @@ class MediaPipePoseServiceImpl implements PoseAnalysisService {
       totalFrames: totalFrames,
       validFrameCount: validFrames,
       framingStatus: status,
-      bodySwayCm: double.parse(swayCm.toStringAsFixed(1)),
+      bodySwayCm: legacySway,
       upperBodyMovementScore: double.parse(
         upperBodyScore.clamp(0.0, 100.0).toStringAsFixed(1),
       ),

@@ -17,7 +17,12 @@ class AiMethodChannel(private val context: Context) : MethodChannel.MethodCallHa
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "initializeWhisper" -> runAsync(result) { whisperEngine.initialize() }
+            "initializeWhisper" -> runAsync(result) {
+                if (!whisperEngine.initialize()) {
+                    throw IllegalStateException(whisperEngine.initializationError())
+                }
+                true
+            }
             "transcribe" -> {
                 val audioPath = call.argument<String>("audioPath").orEmpty()
                 val language = call.argument<String>("language") ?: "auto"

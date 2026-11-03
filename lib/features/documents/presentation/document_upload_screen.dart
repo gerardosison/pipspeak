@@ -12,6 +12,8 @@ import '../../../app/app_providers.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/errors/analysis_failure.dart';
+import '../../ai/feedback/local_llm_service.dart';
+import '../services/local_document_service.dart';
 import '../../../core/widgets/pip_buttons.dart';
 import '../../../core/widgets/pip_cards.dart';
 import '../../../core/widgets/pip_chips.dart';
@@ -21,7 +23,7 @@ import '../../../core/widgets/pip_misc.dart';
 
 /// Document Upload — dashed drop zone, purpose chips, target pace,
 /// analyze CTA (Stitch `document_upload_speech_script`).
-/// Parsing is mocked via DocumentService. The unreadable-file error
+/// Parsing and feedback run locally via DocumentService. The unreadable-file error
 /// (Stitch `document_upload_unreadable_file_error`) is a state of this
 /// screen, not a separate route.
 class DocumentUploadScreen extends ConsumerStatefulWidget {
@@ -37,11 +39,13 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   String? _filePath;
   int _targetWpm = 140;
   bool _busy = false;
+  InferenceCancellation? _request;
   bool _unreadable = false;
   final _pasted = TextEditingController();
 
   @override
   void dispose() {
+    _request?.cancel();
     _pasted.dispose();
     super.dispose();
   }
@@ -84,26 +88,41 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   }
 
   Future<void> _analyze() async {
-    if (_filePath == null) return;
+    if (_filePath == null || _busy) return;
+    final accountId = ref.read(currentUidProvider);
+    final request = InferenceCancellation();
+    _request = request;
     setState(() => _busy = true);
     try {
-      var result = await ref.read(documentServiceProvider).analyze(_filePath!);
+      final service = ref.read(documentServiceProvider);
+      var result = service is LocalDocumentService
+          ? await service.analyze(_filePath!, cancellation: request)
+          : await service.analyze(_filePath!);
+      if (!mounted || request.isCancelled) return;
       final uid = ref.read(currentUidProvider);
+      if (uid != accountId) {
+        throw StateError('Account changed. Please analyze the document again.');
+      }
       if (uid != null) {
         result = await ref.read(documentRepositoryProvider).save(uid, result);
       }
-      if (!mounted) return;
+      if (!mounted ||
+          request.isCancelled ||
+          ref.read(currentUidProvider) != accountId) {
+        return;
+      }
       ref.read(lastDocAnalysisProvider.notifier).state = result;
       context.push(AppRoutes.scriptAnalysis);
     } on DocumentUnreadableException {
       if (mounted) setState(() => _unreadable = true);
     } catch (error) {
-      if (mounted) {
+      if (mounted && !request.isCancelled) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not analyze the file: $error')),
         );
       }
     } finally {
+      if (identical(_request, request)) _request = null;
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -131,7 +150,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   button: true,
                   label: 'Choose a file to upload',
                   child: InkWell(
-                    onTap: _pickFile,
+                    onTap: _busy ? null : _pickFile,
                     borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                     child: CustomPaint(
                       painter: _DashedBorderPainter(
@@ -297,6 +316,12 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   icon: _busy ? null : Icons.auto_awesome,
                   onPressed: (_fileName == null || _busy) ? null : _analyze,
                 ),
+                if (_busy)
+                  TextButton.icon(
+                    onPressed: () => _request?.cancel(),
+                    icon: const Icon(Icons.stop_rounded),
+                    label: const Text('Cancel analysis'),
+                  ),
               ],
             ),
           ),

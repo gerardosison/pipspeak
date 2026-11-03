@@ -29,7 +29,8 @@ class ScoredSession {
 class ScoringService {
   const ScoringService();
 
-  static const version = 'v1';
+  // Corrected hesitation/pose measurements are not comparable to legacy v1.
+  static const version = 'v2';
   static const window = 3;
 
   StarAward award({

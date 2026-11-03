@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -26,7 +27,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
   final List<String> _steps = const [
     'Transcribing audio with local speech model...',
     'Analyzing speaking pace, rhythm & filler words...',
-    'Evaluating body language, posture & eye contact...',
+    'Evaluating body alignment and gestures...',
     'Generating personalized AI coaching tips...',
   ];
 
@@ -108,9 +109,8 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
               Text(
                 'Analyzing Your Speech',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 10),
               Text(
@@ -131,7 +131,9 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                   value: progress,
                   minHeight: 8,
                   backgroundColor: AppColors.line,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.blue),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppColors.blue,
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
@@ -164,10 +166,14 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: isComplete ? Colors.green : AppColors.paper,
+                              color: isComplete
+                                  ? Colors.green
+                                  : AppColors.paper,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isComplete ? Colors.green : AppColors.line,
+                                color: isComplete
+                                    ? Colors.green
+                                    : AppColors.line,
                               ),
                             ),
                             child: isComplete
@@ -190,7 +196,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                                 color: isComplete
                                     ? AppColors.primaryText(context)
                                     : AppColors.secondaryText(context)
-                                        .withValues(alpha: 0.8),
+                                          .withValues(alpha: 0.8),
                               ),
                             ),
                           ),
@@ -221,5 +227,3 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
     );
   }
 }
-
-
