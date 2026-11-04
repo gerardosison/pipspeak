@@ -44,9 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Local AI weights are downloaded separately and must not be pushed with code.
+# Ignore alternate/duplicate weights. The two canonical assets are shared via
+# Git LFS (.gitattributes), with their small integrity manifests in regular Git.
 /ggml-base-q5_1.bin
 /assets/models/llm/*.gguf
 /assets/models/whisper/*.bin
 /android/app/src/main/assets/models/llm/*.gguf
 /android/app/src/main/assets/models/whisper/*.bin
+!/assets/models/llm/qwen3-0.6b-q8_0.gguf
+!/assets/models/whisper/ggml-base-q5_1.bin

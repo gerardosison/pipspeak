@@ -34,7 +34,7 @@ Follow [local-models.md](local-models.md). Both actual weights and their verifie
 `model-integrity.json` manifests must be prepared before building. The app now
 rejects missing, corrupt, stale or placeholder artifacts with setup instructions.
 It never downloads replacement models silently or accepts a file merely because
-it is larger than 1 MB. Keep model weights out of Git.
+it is larger than 1 MB. Store model weights through Git LFS; do not commit their large contents as ordinary Git objects.
 
 The canonical Qwen path is `assets/models/llm/qwen3-0.6b-q8_0.gguf`, using the
 Q8_0 artifact published by the official Qwen repository. The former Q4_K_M

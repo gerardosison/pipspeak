@@ -96,12 +96,12 @@ flutter build apk --release --target-platform android-arm64
 
 ## 5. Local AI models
 
-Models are not committed (size). Prepare verified weights and manifests before building; see [docs/local-models.md](docs/local-models.md):
+The canonical weights are configured for Git LFS. After the maintainer uploads them, use `git lfs pull`; otherwise prepare them with the downloader. Verify weights and manifests before building; see [docs/local-models.md](docs/local-models.md) and [model upload instructions](docs/sharing-model-assets.md):
 
 | Model | Path | License |
 | --- | --- | --- |
-| Whisper `ggml-base-q5_1.bin` | `assets/models/whisper/` (not committed) | MIT |
-| Qwen3 `qwen3-0.6b-q8_0.gguf` | `assets/models/llm/` (not committed) | Apache-2.0 |
+| Whisper `ggml-base-q5_1.bin` | `assets/models/whisper/` (Git LFS) | MIT |
+| Qwen3 `qwen3-0.6b-q8_0.gguf` | `assets/models/llm/` (Git LFS) | Apache-2.0 |
 | Google ML Kit Pose Detection | Model supplied by Android SDK dependency; no `.task` required | Google ML Kit terms |
 
 During development, optional speech coaching can fall back to rule-based

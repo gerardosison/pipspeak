@@ -1,7 +1,20 @@
 # Local model files
 
-Model weights are excluded from Git. Prepare them **before building**; a normal
-Git checkout alone cannot run the local speech/chat/document models.
+The two canonical model assets are configured for **Git LFS**. Their large
+contents must be uploaded by a maintainer who has downloaded and verified them;
+GitHub stores small pointers in the ordinary Git history. See
+[sharing model assets](sharing-model-assets.md) for the upload steps.
+
+After those assets are published, teammates can retrieve them with:
+
+```powershell
+git lfs install
+git lfs pull
+python scripts/verify_model_hashes.py
+```
+
+If they have not been uploaded yet, prepare them using the downloader below.
+The actual weights must be present **before building** a native AI release.
 
 | Model | File path | Download |
 | --- | --- | --- |
@@ -17,7 +30,8 @@ peak memory must be measured on the target phone. Do not rename a Q4 file as Q8.
 
 The Flutter asset declarations in `pubspec.yaml` package these files as
 `assets/models/llm/...` and `assets/models/whisper/...`. Keep the downloaded
-weights out of commits; `.gitignore` excludes both formats.
+weights in Git LFS, rather than ordinary Git objects. `.gitignore` permits only
+the canonical weights and excludes alternate copies.
 
 ## Prepare and verify models
 

@@ -8,7 +8,7 @@ supported Android device and separately prepared model weights.
 ## Run
 
 Requires Flutter 3.47+ and Dart 3.13+ for the locked dependencies.
-Prepare verified model weights using `docs/local-models.md` before an Android AI build.
+Retrieve the verified weights with Git LFS after the maintainer uploads them, or use the model downloader in `docs/local-models.md`, before an Android AI build. See [model sharing instructions](docs/sharing-model-assets.md).
 
 ```sh
 flutter pub get
