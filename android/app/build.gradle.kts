@@ -1,4 +1,6 @@
 import org.gradle.api.GradleException
+import java.security.MessageDigest
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -40,10 +42,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         // Must match the Android app registered in google-services.json.
@@ -79,6 +77,12 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
@@ -122,7 +126,7 @@ val verifyLocalAiReleaseAssets = tasks.register("verifyLocalAiReleaseAssets") {
                 expectedBytes <= 1024L * 1024L || model.length() != expectedBytes) {
                 throw GradleException("Offline AI artifact identity/size is invalid for $filename. $remedy")
             }
-            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val digest = MessageDigest.getInstance("SHA-256")
             model.inputStream().buffered().use { input ->
                 val buffer = ByteArray(128 * 1024)
                 while (true) {
@@ -131,7 +135,9 @@ val verifyLocalAiReleaseAssets = tasks.register("verifyLocalAiReleaseAssets") {
                     digest.update(buffer, 0, count)
                 }
             }
-            val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+            val actualHash = digest.digest().joinToString("") { byte: Byte ->
+                "%02x".format(byte.toInt() and 0xff)
+            }
             if (!actualHash.equals(expectedHash, ignoreCase = true)) {
                 throw GradleException("Offline AI checksum verification failed for $filename. $remedy")
             }
