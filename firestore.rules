@@ -95,17 +95,20 @@ service cloud.firestore {
       }
     }
 
-    // Public username → account lookup so usernames can be used to sign in.
-    // Reveals the email linked to a username (documented trade-off).
+    // Public reservations contain UID only. Legacy email-bearing documents
+    // remain private to their owner until the owner migrates/removes them.
     match /usernames/{username} {
-      allow get: if true;
+      allow get: if !exists(/databases/$(database)/documents/usernames/$(username))
+        || resource.data.keys().hasOnly(['uid'])
+        || (signedIn() && resource.data.uid == request.auth.uid);
       allow list: if false;
       allow create: if signedIn()
         && username.matches('^[a-z0-9_.]{3,20}$')
-        && request.resource.data.keys().hasOnly(['uid', 'email'])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.email == request.auth.token.email;
-      allow update: if false;
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
   }

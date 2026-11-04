@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -87,6 +88,7 @@ class _DocumentProcessingScreenState
               bytes,
               onProgress: _updateStatus,
               cancellation: _request,
+              textOnlyPreview: kIsWeb,
             )
           : await service.analyze(
               widget.request.fileName,

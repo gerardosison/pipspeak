@@ -13,13 +13,13 @@ abstract final class AppColors {
 
   static Color brandForeground(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? Theme.of(context).colorScheme.primary
-          : navy;
+      ? Theme.of(context).colorScheme.primary
+      : navy;
 
   static Color accentForeground(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? Theme.of(context).colorScheme.primary
-          : blue;
+      ? Theme.of(context).colorScheme.primary
+      : blue;
 
   // ---------------------------------------------------------------- Brand
   /// Deep navy — primary buttons, headlines, active nav markers.
@@ -109,23 +109,26 @@ abstract final class AppColors {
   static const Color buttonPressShadow = Color(0xFF0B1538);
 
   static List<BoxShadow> cardShadow(int level) => switch (level) {
-        2 => const [
-            BoxShadow(
-                color: Color.fromRGBO(27, 42, 107, 0.09),
-                blurRadius: 24,
-                offset: Offset(0, 8)),
-          ],
-        3 => const [
-            BoxShadow(
-                color: Color.fromRGBO(27, 42, 107, 0.14),
-                blurRadius: 32,
-                offset: Offset(0, 12)),
-          ],
-        _ => const [
-            BoxShadow(
-                color: Color.fromRGBO(27, 42, 107, 0.06),
-                blurRadius: 16,
-                offset: Offset(0, 4)),
-          ],
-      };
+    2 => const [
+      BoxShadow(
+        color: Color.fromRGBO(27, 42, 107, 0.09),
+        blurRadius: 24,
+        offset: Offset(0, 8),
+      ),
+    ],
+    3 => const [
+      BoxShadow(
+        color: Color.fromRGBO(27, 42, 107, 0.14),
+        blurRadius: 32,
+        offset: Offset(0, 12),
+      ),
+    ],
+    _ => const [
+      BoxShadow(
+        color: Color.fromRGBO(27, 42, 107, 0.06),
+        blurRadius: 16,
+        offset: Offset(0, 4),
+      ),
+    ],
+  };
 }

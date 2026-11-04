@@ -9,7 +9,6 @@ import '../../../app/app_router.dart';
 import '../services/auth_service.dart';
 
 import '../../../app/theme/app_colors.dart';
-import '../../onboarding/presentation/welcome_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -126,16 +125,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (profile?.onboardingComplete ?? false) {
         context.go(AppRoutes.home);
       } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                WelcomeScreen(nickname: profile?.nickname ?? 'Speaker'),
-          ),
-        );
+        context.go(AppRoutes.splash);
       }
     } on AuthFailure catch (error) {
       _showError(error.message);
+    } catch (_) {
+      _showError(
+        'Your account could not be opened. Check your connection and try again.',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -200,9 +197,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               builder: (context, child) {
                                 const heroHeight = 190.0;
                                 const formHeight = 500.0;
-                                final bottomSafe = MediaQuery.of(
-                                  context,
-                                ).padding.bottom;
+                                final bottomSafe = MediaQuery.of(context)
+                                    .padding
+                                    .bottom;
                                 final topStart =
                                     (height * 0.38 - heroHeight / 2).clamp(
                                       8.0,
@@ -422,9 +419,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             0.7,
             Text(
               'Welcome back',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           const SizedBox(height: 18),

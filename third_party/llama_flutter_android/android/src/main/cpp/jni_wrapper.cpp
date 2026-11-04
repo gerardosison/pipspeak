@@ -7,6 +7,7 @@
 #include <android/log.h>
 #include "llama.cpp/include/llama.h"
 #include <vulkan/vulkan.h>
+#include "pipspeak/unicode_bridge.h"
 
 
 #define LOG_TAG "LlamaJNI"
@@ -19,135 +20,6 @@ static const llama_vocab* g_vocab = nullptr;
 static llama_sampler* g_sampler = nullptr;
 static std::atomic<bool> g_stop_flag{false};
 static int g_n_past = 0;  // Track the number of tokens already in KV cache
-
-// Helper function to validate UTF-8 strings
-static bool isValidUTF8(const char* str, size_t len) {
-    if (!str) return false;
-
-    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(str);
-    size_t i = 0;
-
-    while (i < len) {
-        unsigned char c = bytes[i];
-
-        // ASCII character (0xxxxxxx)
-        if ((c & 0x80) == 0) {
-            i++;
-            continue;
-        }
-
-        // Multi-byte sequence start (110xxxxx, 1110xxxx, or 11110xxx)
-        int num_bytes = 0;
-        if ((c & 0xE0) == 0xC0) {
-            num_bytes = 2; // 110xxxxx
-        } else if ((c & 0xF0) == 0xE0) {
-            num_bytes = 3; // 1110xxxx
-        } else if ((c & 0xF8) == 0xF0) {
-            num_bytes = 4; // 11110xxx
-        } else {
-            // Invalid first byte
-            return false;
-        }
-
-        // Check if we have enough bytes left
-        if (i + num_bytes > len) {
-            return false;
-        }
-
-        // Check continuation bytes (10xxxxxx)
-        for (int j = 1; j < num_bytes; j++) {
-            if ((bytes[i + j] & 0xC0) != 0x80) {
-                return false;
-            }
-        }
-
-        // Check for overlong encodings and invalid code points
-        if (num_bytes == 2) {
-            // Overlong encoding of ASCII character
-            if ((c & 0x1E) == 0) return false;
-        } else if (num_bytes == 3) {
-            // Invalid surrogate halves (U+D800-U+DFFF)
-            if (c == 0xED && (bytes[i + 1] & 0x20) == 0x20) return false;
-            // Overlong encoding
-            if (c == 0xE0 && (bytes[i + 1] & 0x20) == 0) return false;
-        } else if (num_bytes == 4) {
-            // Out of Unicode range (> U+10FFFF)
-            if (c > 0xF4) return false;
-            // Overlong encoding
-            if (c == 0xF0 && (bytes[i + 1] & 0x30) == 0) return false;
-            // Invalid code points (> U+10FFFF)
-            if (c == 0xF4 && bytes[i + 1] > 0x8F) return false;
-        }
-
-        i += num_bytes;
-    }
-
-    return true;
-}
-
-// Helper function to sanitize UTF-8 strings
-static std::string sanitizeUTF8(const char* str, size_t len) {
-    if (!str || len == 0) return "";
-
-    // First try to validate as-is
-    if (isValidUTF8(str, len)) {
-        return std::string(str, len);
-    }
-
-    // If invalid, create a sanitized version
-    std::string result;
-    result.reserve(len);
-
-    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(str);
-    size_t i = 0;
-
-    while (i < len) {
-        unsigned char c = bytes[i];
-
-        // ASCII character (0xxxxxxx)
-        if ((c & 0x80) == 0) {
-            result += c;
-            i++;
-            continue;
-        }
-
-        // Multi-byte sequence start
-        int num_bytes = 0;
-        if ((c & 0xE0) == 0xC0) {
-            num_bytes = 2;
-        } else if ((c & 0xF0) == 0xE0) {
-            num_bytes = 3;
-        } else if ((c & 0xF8) == 0xF0) {
-            num_bytes = 4;
-        } else {
-            // Invalid first byte, replace with replacement character
-            result += "\xEF\xBF\xBD"; //
-            i++;
-            continue;
-        }
-
-        // Check if we have enough bytes left
-        if (i + num_bytes > len) {
-            result += "\xEF\xBF\xBD"; //
-            break;
-        }
-
-        // Extract the sequence
-        std::string seq(reinterpret_cast<const char*>(bytes + i), num_bytes);
-
-        // Validate the sequence
-        if (isValidUTF8(seq.c_str(), num_bytes)) {
-            result += seq;
-        } else {
-            // Invalid sequence, replace with replacement character
-            result += "\xEF\xBF\xBD"; //
-        }
-
-        i += num_bytes;
-    }
-
-    return result;
-}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeDetectGpu(
@@ -360,14 +232,12 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     g_n_past = 0;
 
     // Tokenize the fresh prompt
-    const char* prompt_str = env->GetStringUTFChars(prompt, nullptr);
-
-    const int prompt_len = strlen(prompt_str);
+    const jchar* prompt_chars = env->GetStringChars(prompt, nullptr);
+    if (prompt_chars == nullptr) return; // Preserve pending JNI allocation error.
+    const std::string sanitized_prompt = pipspeak::utf16ToUtf8(
+        reinterpret_cast<const uint16_t*>(prompt_chars), env->GetStringLength(prompt));
+    env->ReleaseStringChars(prompt, prompt_chars);
     // Never log private prompts, transcripts, or document passages.
-    LOGI("Vocab pointer: %p, Model pointer: %p", (void*)g_vocab, (void*)g_model);
-
-    // Sanitize the UTF-8 string before tokenizing
-    std::string sanitized_prompt = sanitizeUTF8(prompt_str, prompt_len);
     const char* sanitized_cstr = sanitized_prompt.c_str();
     const int sanitized_len = sanitized_prompt.length();
 
@@ -376,7 +246,6 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     LOGI("Token count: %d", n_prompt_tokens);
 
     if (n_prompt_tokens <= 0) {
-        env->ReleaseStringUTFChars(prompt, prompt_str);
         jclass exception = env->FindClass("java/lang/RuntimeException");
         char error_msg[256];
         snprintf(error_msg, sizeof(error_msg), "Failed to tokenize prompt (got %d tokens)", n_prompt_tokens);
@@ -386,13 +255,11 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     std::vector<llama_token> tokens(n_prompt_tokens);
     const int actual_tokens = llama_tokenize(g_vocab, sanitized_cstr, sanitized_len, tokens.data(), tokens.size(), true, true);
     if (actual_tokens < 0) {
-        env->ReleaseStringUTFChars(prompt, prompt_str);
         jclass exception = env->FindClass("java/lang/RuntimeException");
         env->ThrowNew(exception, "Failed to tokenize prompt");
         return;
     }
     tokens.resize(actual_tokens);
-    env->ReleaseStringUTFChars(prompt, prompt_str);
 
     const int n_ctx = llama_n_ctx(g_ctx);
 
@@ -516,6 +383,16 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     jclass callbackClass = env->GetObjectClass(token_callback);
     jmethodID invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;)Ljava/lang/Object;");
 
+    pipspeak::Utf8StreamDecoder text_decoder;
+    auto emit_text = [&](const std::u16string& text) {
+        if (text.empty()) return;
+        const jstring token_str = env->NewString(
+            reinterpret_cast<const jchar*>(text.data()), static_cast<jsize>(text.size()));
+        if (token_str == nullptr) return;
+        env->CallObjectMethod(g_token_callback, invokeMethod, token_str);
+        env->DeleteLocalRef(token_str);
+    };
+
     // Generation loop
     LOGI("Starting generation loop: max_tokens=%lld", max_tokens);
     for (int i = 0; i < max_tokens && !g_stop_flag; i++) {
@@ -528,21 +405,18 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
             break;
         }
 
-        // Decode token to string
+        // BPE pieces are bytes, not necessarily complete UTF-8 characters.
         char buffer[256];
         int32_t length = llama_token_to_piece(g_vocab, new_token_id, buffer, sizeof(buffer), 0, true);
-        std::string piece;
-
-        if (length > 0) {
-            piece = sanitizeUTF8(buffer, length);
-        } else {
-            piece = "";
+        std::vector<char> large_piece;
+        const char* piece_bytes = buffer;
+        if (length < 0) {
+            large_piece.resize(static_cast<std::size_t>(-length));
+            length = llama_token_to_piece(g_vocab, new_token_id, large_piece.data(), large_piece.size(), 0, true);
+            piece_bytes = large_piece.data();
         }
-
-        // Call Kotlin callback
-        jstring token_str = env->NewStringUTF(piece.c_str());
-        env->CallObjectMethod(g_token_callback, invokeMethod, token_str);
-        env->DeleteLocalRef(token_str);
+        if (length > 0) emit_text(text_decoder.append(piece_bytes, static_cast<std::size_t>(length)));
+        if (env->ExceptionCheck()) break;
 
         // Prepare next batch
         batch.n_tokens = 0;
@@ -561,6 +435,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
         // Update position counter after each generated token
         g_n_past++;
     }
+    if (!g_stop_flag && !env->ExceptionCheck()) emit_text(text_decoder.finish());
     LOGI("Generation loop finished.");
 
     if (g_token_callback != nullptr) {

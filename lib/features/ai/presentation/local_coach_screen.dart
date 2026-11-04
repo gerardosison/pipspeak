@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/widgets/pip_misc.dart';
 import '../feedback/local_llm_service.dart';
+import '../feedback/local_ai_failure.dart';
 
 class LocalCoachScreen extends StatefulWidget {
   const LocalCoachScreen({super.key});
@@ -99,11 +100,12 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
       if (mounted) setState(() => _status = 'Offline Qwen assistant');
     } catch (error) {
       if (mounted && !request.isCancelled) {
+        final failure = LocalAiFailure.from(error);
         setState(() {
           _messages[replyIndex - 1].includeInHistory = false;
           _messages[replyIndex].includeInHistory = false;
-          _messages[replyIndex].text = 'Could not answer locally: $error';
-          _status = 'Qwen could not answer';
+          _messages[replyIndex].text = failure.message;
+          _status = failure.title;
         });
       }
     } finally {
@@ -204,9 +206,9 @@ class _LocalCoachScreenState extends State<LocalCoachScreen> {
                               decoration: BoxDecoration(
                                 color: message.isUser
                                     ? AppColors.navy
-                                    : Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHigh,
+                                    : Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHigh,
                                 borderRadius: BorderRadius.circular(18),
                               ),
                               child: Text(

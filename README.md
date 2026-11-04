@@ -15,6 +15,22 @@ flutter pub get
 flutter run
 ```
 
+### Chrome on Windows
+
+```powershell
+flutter run -d chrome --web-port 7357
+```
+
+Keep the same port when restarting: browser data belongs to an origin (host and
+port). Changing ports, clearing browser data or using a private window uses different storage.
+
+Chrome supports account screens, SQLite-backed history/progress, theme settings,
+local profile photos, and local document text extraction. The current Qwen,
+Whisper and pose implementations require Android; they cannot run in Chrome.
+Browser screens explain this before invoking native plugins. Document text
+extraction in the browser is explicitly labeled as a preview without AI analysis.
+A successful browser build does not validate Android model performance.
+
 ### Android emulator and device builds
 
 Install the Android SDK, the NDK version selected by Flutter, and CMake 3.22.1
@@ -71,7 +87,7 @@ production providers use Whisper, ML Kit, and the local document/feedback servic
 
 ## Accounts, storage and sync
 
-- Sign-in uses Firebase Authentication (email/password; usernames map to emails).
+- Sign-in uses Firebase Authentication (email/password). A previously saved username can identify an account on the same device; a new device needs the email. Public username reservations contain only a UID.
 - Everything is saved on the device first in SQLite (Drift, `lib/data/local/app_database.dart`):
   profile, practice sessions with full feedback, analyzed documents and settings.
 - Only profile fields and numeric session summaries sync to Firestore

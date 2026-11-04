@@ -13,34 +13,34 @@ abstract final class AppTheme {
   static const double pillRadius = 999;
 
   static ThemeData light() => _base(
-        brightness: Brightness.light,
-        scaffold: AppColors.canvas,
-        card: AppColors.surfaceLowest,
-        primary: AppColors.primaryContainer,
-        onPrimary: AppColors.onPrimary,
-        surface: AppColors.surface,
-        onSurface: AppColors.onSurface,
-        onSurfaceVariant: AppColors.onSurfaceVariant,
-        outline: AppColors.outline,
-        outlineVariant: AppColors.outlineVariant,
-        inputFill: AppColors.surfaceLow,
-        navIndicator: AppColors.secondaryFixed,
-      );
+    brightness: Brightness.light,
+    scaffold: AppColors.canvas,
+    card: AppColors.surfaceLowest,
+    primary: AppColors.primaryContainer,
+    onPrimary: AppColors.onPrimary,
+    surface: AppColors.surface,
+    onSurface: AppColors.onSurface,
+    onSurfaceVariant: AppColors.onSurfaceVariant,
+    outline: AppColors.outline,
+    outlineVariant: AppColors.outlineVariant,
+    inputFill: AppColors.surfaceLow,
+    navIndicator: AppColors.secondaryFixed,
+  );
 
   static ThemeData dark() => _base(
-        brightness: Brightness.dark,
-        scaffold: AppColors.darkCanvas,
-        card: AppColors.darkSurface1,
-        primary: AppColors.inversePrimary,
-        onPrimary: AppColors.navyDeep,
-        surface: AppColors.darkCanvas,
-        onSurface: AppColors.darkOnSurface,
-        onSurfaceVariant: AppColors.darkOnSurfaceVariant,
-        outline: AppColors.darkOutline,
-        outlineVariant: AppColors.darkSurface3,
-        inputFill: AppColors.darkSurface2,
-        navIndicator: AppColors.darkSurface3,
-      );
+    brightness: Brightness.dark,
+    scaffold: AppColors.darkCanvas,
+    card: AppColors.darkSurface1,
+    primary: AppColors.inversePrimary,
+    onPrimary: AppColors.navyDeep,
+    surface: AppColors.darkCanvas,
+    onSurface: AppColors.darkOnSurface,
+    onSurfaceVariant: AppColors.darkOnSurfaceVariant,
+    outline: AppColors.darkOutline,
+    outlineVariant: AppColors.darkSurface3,
+    inputFill: AppColors.darkSurface2,
+    navIndicator: AppColors.darkSurface3,
+  );
 
   static ThemeData _base({
     required Brightness brightness,
@@ -62,30 +62,56 @@ abstract final class AppTheme {
       brightness: brightness,
       primary: primary,
       onPrimary: onPrimary,
-      primaryContainer: isDark ? AppColors.darkSurface2 : AppColors.primaryContainer,
-      onPrimaryContainer: isDark ? AppColors.inversePrimary : AppColors.onPrimaryContainer,
+      primaryContainer: isDark
+          ? AppColors.darkSurface2
+          : AppColors.primaryContainer,
+      onPrimaryContainer: isDark
+          ? AppColors.inversePrimary
+          : AppColors.onPrimaryContainer,
       secondary: isDark ? AppColors.sky : AppColors.secondary,
       onSecondary: isDark ? AppColors.navyDeep : AppColors.onSecondary,
-      secondaryContainer: isDark ? AppColors.darkSurface3 : AppColors.secondaryContainer,
-      onSecondaryContainer: isDark ? AppColors.secondaryFixed : AppColors.onSecondaryContainer,
-      tertiary: isDark ? AppColors.tertiaryFixed : AppColors.onTertiaryFixedVariant,
+      secondaryContainer: isDark
+          ? AppColors.darkSurface3
+          : AppColors.secondaryContainer,
+      onSecondaryContainer: isDark
+          ? AppColors.secondaryFixed
+          : AppColors.onSecondaryContainer,
+      tertiary: isDark
+          ? AppColors.tertiaryFixed
+          : AppColors.onTertiaryFixedVariant,
       onTertiary: isDark ? AppColors.navyDeep : AppColors.onTertiary,
-      tertiaryContainer: isDark ? AppColors.darkSurface2 : AppColors.tertiaryFixed,
-      onTertiaryContainer: isDark ? AppColors.tertiaryFixed : AppColors.onTertiaryFixedVariant,
+      tertiaryContainer: isDark
+          ? AppColors.darkSurface2
+          : AppColors.tertiaryFixed,
+      onTertiaryContainer: isDark
+          ? AppColors.tertiaryFixed
+          : AppColors.onTertiaryFixedVariant,
       error: isDark ? const Color(0xFFFFB4AB) : AppColors.error,
       onError: isDark ? const Color(0xFF690005) : AppColors.onError,
-      errorContainer: isDark ? const Color(0xFF5C1410) : AppColors.errorContainer,
-      onErrorContainer: isDark ? AppColors.errorContainer : AppColors.onErrorContainer,
+      errorContainer: isDark
+          ? const Color(0xFF5C1410)
+          : AppColors.errorContainer,
+      onErrorContainer: isDark
+          ? AppColors.errorContainer
+          : AppColors.onErrorContainer,
       surface: surface,
       onSurface: onSurface,
       onSurfaceVariant: onSurfaceVariant,
       outline: outline,
       outlineVariant: outlineVariant,
       surfaceContainerLowest: card,
-      surfaceContainerLow: isDark ? AppColors.darkSurface1 : AppColors.surfaceLow,
-      surfaceContainer: isDark ? AppColors.darkSurface2 : AppColors.surfaceContainer,
-      surfaceContainerHigh: isDark ? AppColors.darkSurface3 : AppColors.surfaceHigh,
-      surfaceContainerHighest: isDark ? AppColors.darkSurface3 : AppColors.surfaceHighest,
+      surfaceContainerLow: isDark
+          ? AppColors.darkSurface1
+          : AppColors.surfaceLow,
+      surfaceContainer: isDark
+          ? AppColors.darkSurface2
+          : AppColors.surfaceContainer,
+      surfaceContainerHigh: isDark
+          ? AppColors.darkSurface3
+          : AppColors.surfaceHigh,
+      surfaceContainerHighest: isDark
+          ? AppColors.darkSurface3
+          : AppColors.surfaceHighest,
       inversePrimary: AppColors.inversePrimary,
       shadow: AppColors.shadowTint,
     );
@@ -101,7 +127,8 @@ abstract final class AppTheme {
         color: card,
         elevation: 0,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(cardRadius)),
+          borderRadius: BorderRadius.circular(cardRadius),
+        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: scaffold,
@@ -112,9 +139,7 @@ abstract final class AppTheme {
         iconTheme: IconThemeData(color: scheme.primary),
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-        },
+        builders: {TargetPlatform.android: FadeUpwardsPageTransitionsBuilder()},
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: card,
@@ -146,25 +171,23 @@ abstract final class AppTheme {
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          textStyle: textTheme.labelLarge,
-          shape: const StadiumBorder(),
-        ).copyWith(
-          backgroundColor: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.hovered) ||
-                      states.contains(WidgetState.pressed) ||
-                      states.contains(WidgetState.focused)
-                  ? scheme.primary
-                  : scheme.primaryContainer),
-          foregroundColor: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.hovered) ||
-                      states.contains(WidgetState.pressed) ||
-                      states.contains(WidgetState.focused)
-                  ? scheme.onPrimary
-                  : scheme.onPrimaryContainer),
-          side: WidgetStatePropertyAll(BorderSide(color: scheme.primary)),
-        ),
+        style:
+            OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              textStyle: textTheme.labelLarge,
+              shape: const StadiumBorder(),
+            ).copyWith(
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) =>
+                    states.contains(WidgetState.hovered) ||
+                        states.contains(WidgetState.pressed) ||
+                        states.contains(WidgetState.focused)
+                    ? scheme.primary.withValues(alpha: 0.08)
+                    : Colors.transparent,
+              ),
+              foregroundColor: WidgetStatePropertyAll(scheme.primary),
+              side: WidgetStatePropertyAll(BorderSide(color: scheme.primary)),
+            ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
@@ -175,8 +198,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: inputFill,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(pillRadius),
           borderSide: BorderSide.none,
@@ -189,7 +214,7 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(pillRadius),
           borderSide: const BorderSide(color: AppColors.sky, width: 2),
         ),
-        hintStyle: textTheme.bodyMedium?.copyWith(color: outlineVariant),
+        hintStyle: textTheme.bodyMedium?.copyWith(color: onSurfaceVariant),
       ),
       chipTheme: ChipThemeData(
         shape: const StadiumBorder(),
@@ -200,29 +225,33 @@ abstract final class AppTheme {
         backgroundColor: card,
         elevation: 0,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(sheetRadius)),
+          borderRadius: BorderRadius.circular(sheetRadius),
+        ),
         titleTextStyle: textTheme.headlineSmall,
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: card,
         elevation: 0,
         shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(sheetRadius)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(sheetRadius),
+          ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerTheme: DividerThemeData(
-          color: isDark ? AppColors.darkSurface2 : AppColors.surfaceHigh,
-          thickness: 1,
-          space: 1),
+        color: isDark ? AppColors.darkSurface2 : AppColors.surfaceHigh,
+        thickness: 1,
+        space: 1,
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: scheme.primary,
-        linearTrackColor: isDark ? AppColors.darkSurface2 : AppColors.surfaceHigh,
+        linearTrackColor: isDark
+            ? AppColors.darkSurface2
+            : AppColors.surfaceHigh,
         borderRadius: BorderRadius.circular(pillRadius),
       ),
       switchTheme: SwitchThemeData(

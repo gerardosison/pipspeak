@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../core/models/models.dart';
 import 'account_providers.dart';
+import 'session_routing.dart';
+import 'startup_screen.dart';
+import '../core/widgets/workflow_recovery.dart';
 import '../features/ai/presentation/local_coach_screen.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -34,6 +37,7 @@ import '../features/settings/presentation/privacy_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 
 abstract final class AppRoutes {
+  static const startup = '/startup';
   static const splash = '/splash';
   static const login = '/login';
   static const register = '/register';
@@ -66,35 +70,38 @@ abstract final class AppRoutes {
   static const about = '/about';
 }
 
-/// Screens reachable while signed out. Signed-in users are not forced away
-/// from these so the registration/onboarding flow can finish.
-const _publicRoutes = {
-  AppRoutes.login,
-  AppRoutes.register,
-  AppRoutes.forgotPassword,
-};
-
 final routerProvider = Provider<GoRouter>((ref) {
   final authRefresh = ValueNotifier<int>(0);
   ref.onDispose(authRefresh.dispose);
-  ref.listen(currentUidProvider, (_, _) => authRefresh.value++);
+  ref.listen(authUserProvider, (_, _) => authRefresh.value++);
+  ref.listen(localProfileProvider, (_, _) => authRefresh.value++);
   return GoRouter(
-    initialLocation: AppRoutes.login,
+    initialLocation: AppRoutes.startup,
     refreshListenable: authRefresh,
     redirect: (_, state) {
       final auth = ref.read(authUserProvider);
-      if (auth.isLoading && !auth.hasValue) return null;
-      final signedIn = auth.valueOrNull != null;
-      final location = state.matchedLocation;
-      if (!signedIn && !_publicRoutes.contains(location)) {
-        return AppRoutes.login;
-      }
-      return null;
+      final profile = ref.read(localProfileProvider);
+      return sessionRedirect(
+        location: state.matchedLocation,
+        authLoading: auth.isLoading && !auth.hasValue,
+        authFailed: auth.hasError,
+        signedIn: auth.valueOrNull != null,
+        profileLoading: profile.isLoading,
+        profileFailed: profile.hasError,
+        profileMissing: profile.hasValue && profile.valueOrNull == null,
+        onboardingComplete: profile.valueOrNull?.onboardingComplete ?? false,
+      );
     },
     routes: [
       GoRoute(
+        path: AppRoutes.startup,
+        builder: (_, _) => const StartupScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.splash,
-        builder: (_, _) => const WelcomeScreen(nickname: 'Speaker'),
+        builder: (_, _) => WelcomeScreen(
+          nickname: ref.read(currentUserProvider)?.nickname ?? '',
+        ),
       ),
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
       GoRoute(
@@ -108,8 +115,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.tour, builder: (_, _) => const TourScreen()),
       GoRoute(
         path: AppRoutes.personalize,
-        builder: (_, state) =>
-            PersonalizationScreen(initialStep: (state.extra as int?) ?? 0),
+        builder: (_, state) => PersonalizationScreen(
+          initialStep: state.extra is int ? state.extra! as int : 0,
+        ),
       ),
       ShellRoute(
         builder: (_, state, child) =>
@@ -145,9 +153,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.practiceProcessing,
-            builder: (_, state) => SpeechAnalysisProcessingScreen(
-              request: state.extra! as SpeechAnalysisProcessingRequest,
-            ),
+            builder: (_, state) =>
+                state.extra is SpeechAnalysisProcessingRequest
+                ? SpeechAnalysisProcessingScreen(
+                    request: state.extra! as SpeechAnalysisProcessingRequest,
+                  )
+                : const WorkflowRecovery(returnPath: AppRoutes.practiceSetup),
           ),
           GoRoute(
             path: AppRoutes.practiceDenied,
@@ -163,7 +174,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.transcript,
-            builder: (_, _) => const TranscriptReviewScreen(),
+            builder: (_, state) => TranscriptReviewScreen(
+              sessionId: state.extra is String ? state.extra! as String : null,
+            ),
           ),
           GoRoute(
             path: AppRoutes.starsReward,
@@ -176,7 +189,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.rehearsalAnalysis,
             builder: (_, state) => RehearsalAnalysisScreen(
-              session: state.extra as PracticeSession?,
+              session: state.extra is PracticeSession
+                  ? state.extra! as PracticeSession
+                  : null,
             ),
           ),
           GoRoute(
@@ -185,9 +200,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.documentProcessing,
-            builder: (_, state) => DocumentProcessingScreen(
-              request: state.extra! as DocumentAnalysisRequest,
-            ),
+            builder: (_, state) => state.extra is DocumentAnalysisRequest
+                ? DocumentProcessingScreen(
+                    request: state.extra! as DocumentAnalysisRequest,
+                  )
+                : const WorkflowRecovery(returnPath: AppRoutes.documentUpload),
           ),
           GoRoute(
             path: AppRoutes.scriptAnalysis,

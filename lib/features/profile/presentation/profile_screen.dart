@@ -1,8 +1,9 @@
-import 'dart:io';
+import '../../../core/widgets/profile_photo.dart';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../../../core/models/user_profile.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -304,7 +305,8 @@ class _ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hasLocalPhoto = !kIsWeb && user.photoPath?.isNotEmpty == true;
+    final photo = profilePhoto(user.photoPath);
+    final hasLocalPhoto = photo != null;
     return Container(
       width: size,
       height: size,
@@ -315,8 +317,8 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: hasLocalPhoto
-            ? Image.file(
-                File(user.photoPath!),
+            ? Image(
+                image: photo,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
@@ -332,9 +334,8 @@ class _ProfileAvatar extends StatelessWidget {
     return Center(
       child: Text(
         name.isEmpty ? '?' : name[0].toUpperCase(),
-        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        style: Theme.of(context).textTheme.headlineMedium
+            ?.copyWith(color: Theme.of(context).colorScheme.primary),
       ),
     );
   }

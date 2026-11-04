@@ -1,4 +1,5 @@
 import 'package:app_builder_hackathon/core/models/feedback_report.dart';
+import 'package:app_builder_hackathon/core/models/speech_metrics.dart';
 import 'package:app_builder_hackathon/data/local/app_database.dart';
 import 'package:app_builder_hackathon/data/repositories/account_guard.dart';
 import 'package:app_builder_hackathon/data/repositories/profile_repository.dart';
@@ -103,6 +104,39 @@ void main() {
     expect(await db.pendingRecords('bob'), isEmpty);
     expect(await progress.record('bob', 's1'), isNull);
   });
+
+  test(
+    'invalid optional metrics do not prevent saving or synchronizing',
+    () async {
+      final saved = await progress.saveCompletedPractice(
+        userId: 'alice',
+        sessionId: 'invalid-metrics',
+        practicePurpose: 'presentation',
+        language: 'en-US',
+        topic: 'Speech',
+        durationSeconds: 60,
+        report: report(70),
+        speech: SpeechMetrics.sample(
+          transcript: 'A genuine transcript',
+          wpm: double.infinity,
+          fillers: -3,
+        ),
+      );
+      expect(saved.wordsPerMinute, isNull);
+      expect(saved.fillerCount, isNull);
+      expect(
+        (await progress.detail('alice', saved.id))!.transcript,
+        'A genuine transcript',
+      );
+      await progress.sync('alice');
+      final cloud =
+          (await firestore.doc('users/alice/sessions/${saved.id}').get())
+              .data()!;
+      expect(cloud.containsKey('wordsPerMinute'), isFalse);
+      expect(cloud.containsKey('fillerCount'), isFalse);
+      expect((await progress.record('alice', saved.id))!.needsUpload, isFalse);
+    },
+  );
 
   test('sync uploads summaries only and marks them uploaded', () async {
     await save('s1', 70);

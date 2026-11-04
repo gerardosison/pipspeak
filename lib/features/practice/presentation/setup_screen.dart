@@ -72,9 +72,9 @@ class _SetupScreenState extends State<SetupScreen> {
         _isCameraOn = false;
         _cameraWorking = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(cameraPluginUnavailableMessage)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(cameraPluginUnavailableMessage)));
       return;
     }
     try {
@@ -117,9 +117,9 @@ class _SetupScreenState extends State<SetupScreen> {
         _isCameraOn = false;
         _cameraWorking = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(cameraPluginUnavailableMessage)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(cameraPluginUnavailableMessage)));
     }
   }
 
@@ -191,11 +191,11 @@ class _SetupScreenState extends State<SetupScreen> {
     if (mounted) {
       setState(() => _micWorking = _audioMonitor.isRecording);
       await _micLevelSubscription?.cancel();
-      _micLevelSubscription = _audioMonitor
-          .amplitudeLevelStream()
-          .listen((level) {
-            if (mounted && _isMicOn) setState(() => _micLevel = level);
-          });
+      _micLevelSubscription = _audioMonitor.amplitudeLevelStream().listen((
+        level,
+      ) {
+        if (mounted && _isMicOn) setState(() => _micLevel = level);
+      });
     }
   }
 
@@ -233,9 +233,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _toggleCamera(bool enabled) async {
     if (!mounted) return;
     setState(() => _isCameraOn = enabled);
-    final matching = _cameras.where(
-      (item) => item.name == _selectedCamera,
-    );
+    final matching = _cameras.where((item) => item.name == _selectedCamera);
     final camera = matching.isEmpty ? null : matching.first;
     if (!enabled || camera == null) {
       final controller = _cameraController;
@@ -318,17 +316,17 @@ class _SetupScreenState extends State<SetupScreen> {
       final microphones = await _audioMonitor.listInputDevices();
       if (!mounted) return;
 
-      final camera = _firstOrNull(
-            cameras.where((item) => item.name == previousCamera),
-          ) ??
+      final camera =
+          _firstOrNull(cameras.where((item) => item.name == previousCamera)) ??
           _firstOrNull(
             cameras.where(
               (item) => item.lensDirection == CameraLensDirection.front,
             ),
           ) ??
           _firstOrNull(cameras);
-      final matchingMicrophones =
-          microphones.where((item) => item.id == previousMicrophone);
+      final matchingMicrophones = microphones.where(
+        (item) => item.id == previousMicrophone,
+      );
       final microphone = matchingMicrophones.isNotEmpty
           ? matchingMicrophones.first
           : (microphones.isEmpty ? null : microphones.first);
@@ -375,13 +373,13 @@ class _SetupScreenState extends State<SetupScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error is MissingPluginException
-                ? cameraPluginUnavailableMessage
-                : 'Could not refresh connected devices: $error',
+          SnackBar(
+            content: Text(
+              error is MissingPluginException
+                  ? cameraPluginUnavailableMessage
+                  : 'Could not refresh connected devices: $error',
+            ),
           ),
-        ),
         );
       }
     } finally {
@@ -390,6 +388,24 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _proceedToCountdown() async {
+    if (kIsWeb) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Browser preview'),
+          content: const Text(
+            'You can test your camera and microphone here. Offline Whisper, pose analysis and Qwen speech feedback currently require the Android app. Browser preview does not save or award AI progress.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     await _micLevelSubscription?.cancel();
     _micLevelSubscription = null;
     await _audioMonitor.cancelRecording();
@@ -441,9 +457,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Check your framing and audio before going live',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
+                    style: Theme.of(context).textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 16),
@@ -483,12 +497,13 @@ class _SetupScreenState extends State<SetupScreen> {
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleSmall
-                                            ?.copyWith(fontWeight: FontWeight.w800),
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                       ),
                                     ),
                                     IconButton(
-                                      tooltip:
-                                          'Refresh connected audio and video devices',
+                                      tooltip: 'Refresh connected audio and video devices',
                                       onPressed: _isRefreshingDevices
                                           ? null
                                           : _refreshConnectedDevices,
@@ -523,15 +538,17 @@ class _SetupScreenState extends State<SetupScreen> {
                                                 : 'Camera unavailable on this platform',
                                           ),
                                           items: _cameras
-                                              .map((camera) =>
-                                                  DropdownMenuItem<String>(
-                                                    value: camera.name,
-                                                    child: Text(
-                                                      _cameraLabel(camera),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
+                                              .map(
+                                                (camera) =>
+                                                    DropdownMenuItem<String>(
+                                                      value: camera.name,
+                                                      child: Text(
+                                                        _cameraLabel(camera),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
                                                     ),
-                                                  ))
+                                              )
                                               .toList(),
                                           onChanged: _selectCamera,
                                         ),
@@ -556,17 +573,21 @@ class _SetupScreenState extends State<SetupScreen> {
                                         child: DropdownButton<String>(
                                           value: _selectedMicrophone,
                                           isExpanded: true,
-                                          hint: const Text('No microphone found'),
+                                          hint: const Text(
+                                            'No microphone found',
+                                          ),
                                           items: _microphones
-                                              .map((device) =>
-                                                  DropdownMenuItem<String>(
-                                                    value: device.id,
-                                                    child: Text(
-                                                      device.label,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
+                                              .map(
+                                                (device) =>
+                                                    DropdownMenuItem<String>(
+                                                      value: device.id,
+                                                      child: Text(
+                                                        device.label,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
                                                     ),
-                                                  ))
+                                              )
                                               .toList(),
                                           onChanged: _selectMicrophone,
                                         ),
@@ -599,18 +620,15 @@ class _SetupScreenState extends State<SetupScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 const _ChecklistItem(
-                                  text:
-                                      'Keep your device at eye level for confident contact',
+                                  text: 'Keep your device at eye level for confident contact',
                                 ),
                                 const SizedBox(height: 6),
                                 const _ChecklistItem(
-                                  text:
-                                      'Speak in a quiet space with minimal background echo',
+                                  text: 'Speak in a quiet space with minimal background echo',
                                 ),
                                 const SizedBox(height: 6),
                                 const _ChecklistItem(
-                                  text:
-                                      '10-second countdown gives you time to breathe and focus',
+                                  text: '10-second countdown gives you time to breathe and focus',
                                 ),
                               ],
                             ),
@@ -627,7 +645,8 @@ class _SetupScreenState extends State<SetupScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton.icon(
-                          onPressed: !kIsWeb &&
+                          onPressed:
+                              !kIsWeb &&
                                   ((_isCameraOn && _cameraWorking) ||
                                       (_isMicOn && _micWorking))
                               ? _proceedToCountdown
@@ -668,6 +687,7 @@ class _SetupScreenState extends State<SetupScreen> {
       ),
     );
   }
+
   String _cameraLabel(CameraDescription camera) {
     final direction = switch (camera.lensDirection) {
       CameraLensDirection.front => 'Front camera',
@@ -704,5 +724,4 @@ class _ChecklistItem extends StatelessWidget {
   }
 }
 
-T? _firstOrNull<T>(Iterable<T> items) =>
-    items.isEmpty ? null : items.first;
+T? _firstOrNull<T>(Iterable<T> items) => items.isEmpty ? null : items.first;

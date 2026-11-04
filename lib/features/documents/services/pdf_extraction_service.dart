@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -8,7 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 
 import 'pdf_ocr_backend_unsupported.dart'
-    if (dart.library.io) 'pdf_ocr_backend_mlkit.dart' as ocr;
+    if (dart.library.io) 'pdf_ocr_backend_mlkit.dart'
+    as ocr;
 
 class PdfExtractionResult {
   const PdfExtractionResult({
@@ -37,10 +37,9 @@ class PdfExtractionService {
     Uint8List bytes, {
     String sourceName = 'uploaded.pdf',
   }) async {
-    final document = await PdfDocument.openData(
-      bytes,
-      sourceName: sourceName,
-    );
+    // PDF runtime initialization must not block account/offline app startup.
+    await pdfrxFlutterInitialize();
+    final document = await PdfDocument.openData(bytes, sourceName: sourceName);
     // Native ML Kit OCR is optional. On web and desktop, pdfrx still extracts
     // selectable PDF text without loading an unsupported OCR plugin.
     final recognizer = ocr.createPdfOcrSession();
@@ -82,7 +81,9 @@ class PdfExtractionService {
         Image? rasterImage;
         try {
           rasterImage = await image.createImage();
-          final pngData = await rasterImage.toByteData(format: ImageByteFormat.png);
+          final pngData = await rasterImage.toByteData(
+            format: ImageByteFormat.png,
+          );
           if (pngData == null) {
             pageTexts.add(selectableText);
             continue;
@@ -90,12 +91,17 @@ class PdfExtractionService {
           ocrTempDir = await Directory.systemTemp.createTemp('hawkabuild_ocr_');
           final pngFile = File(p.join(ocrTempDir.path, 'page.png'));
           await pngFile.writeAsBytes(
-            pngData.buffer.asUint8List(pngData.offsetInBytes, pngData.lengthInBytes),
+            pngData.buffer.asUint8List(
+              pngData.offsetInBytes,
+              pngData.lengthInBytes,
+            ),
             flush: true,
           );
           final ocrText = (await recognizer.recognizeFile(pngFile.path)).trim();
           ocrPageCount++;
-          pageTexts.add(ocrText.length > selectableText.length ? ocrText : selectableText);
+          pageTexts.add(
+            ocrText.length > selectableText.length ? ocrText : selectableText,
+          );
         } finally {
           rasterImage?.dispose();
           image.dispose();

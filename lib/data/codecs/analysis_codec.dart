@@ -87,6 +87,7 @@ class AnalysisCodec {
 
   static String encodeDocument(DocumentResult doc) => jsonEncode({
     'documentId': doc.documentId,
+    'aiAnalyzed': doc.aiAnalyzed,
     'title': doc.title,
     'extractedText': doc.extractedText,
     'keySections': doc.keySections,
@@ -104,6 +105,7 @@ class AnalysisCodec {
     ];
     return DocumentResult(
       documentId: json['documentId'] as String? ?? '',
+      aiAnalyzed: json['aiAnalyzed'] != false,
       title: json['title'] as String? ?? '',
       extractedText: json['extractedText'] as String? ?? '',
       keySections: list('keySections'),

@@ -4,21 +4,30 @@ import 'package:uuid/uuid.dart';
 import '../../core/models/document_result.dart';
 import '../codecs/analysis_codec.dart';
 import '../local/app_database.dart';
+import 'account_guard.dart';
 
 /// Device-local document analysis history. Raw documents and extracted
 /// text are never uploaded.
 class DocumentRepository {
-  DocumentRepository(this.database);
+  DocumentRepository(this.database, {required this.guard});
 
   final AppDatabase database;
+  final AccountGuard guard;
 
   Future<DocumentResult> save(String userId, DocumentResult result) async {
+    guard.check(userId);
     if (userId.isEmpty) throw ArgumentError('Sign in to save documents.');
-    final id = result.documentId.isEmpty
-        ? const Uuid().v4()
-        : result.documentId;
+    var id = result.documentId.isEmpty ? const Uuid().v4() : result.documentId;
+    final existing = await (database.select(
+      database.localDocuments,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (existing != null && existing.userId != userId) id = const Uuid().v4();
+    guard.check(userId);
     final stored = DocumentResult(
       documentId: id,
+      aiAnalyzed: result.aiAnalyzed,
+      isReadable: result.isReadable,
+      rejectionReason: result.rejectionReason,
       title: result.title,
       extractedText: result.extractedText,
       keySections: result.keySections,
@@ -51,6 +60,7 @@ class DocumentRepository {
   }
 
   Future<void> remove(String userId, String id) async {
+    guard.check(userId);
     await (database.delete(
       database.localDocuments,
     )..where((row) => row.userId.equals(userId) & row.id.equals(id))).go();

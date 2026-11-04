@@ -20,11 +20,28 @@ class PersonalizationScreen extends ConsumerStatefulWidget {
 
 class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
   late int _page;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _page = widget.initialStep.clamp(0, 1).toInt();
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      final matching = _languages.where(
+        (l) => l.name == user.language || l.code == user.language,
+      );
+      if (matching.isNotEmpty) {
+        final language = matching.first;
+        _selectedLanguage = '${language.flag} ${language.name}';
+      }
+      final goals = user.goal.split(', ').where(_practiceOptions.contains);
+      if (goals.isNotEmpty) {
+        _selectedPractices
+          ..clear()
+          ..addAll(goals);
+      }
+    }
   }
 
   // Page 1: Language selection (with Flag Icon & Flag Name)
@@ -52,6 +69,7 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
   ];
 
   void _next() {
+    if (_saving) return;
     if (_page == 0) {
       setState(() => _page = 1);
     } else {
@@ -72,30 +90,58 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
 
   /// Saves preferences locally (synced later) and opens Home.
   Future<void> _finish() async {
+    if (_saving) return;
     final uid = ref.read(currentUidProvider);
-    if (uid != null) {
+    if (uid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in before saving your preferences.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
       final repo = ref.read(profileRepositoryProvider);
       final profile = await repo.get(uid);
       final language = _languages.firstWhere(
         (l) => '${l.flag} ${l.name}' == _selectedLanguage,
         orElse: () => _languages.first,
       );
-      ref.read(selectedLanguageProvider.notifier).state = language.code;
+      final goals = _practiceOptions
+          .where(_selectedPractices.contains)
+          .join(', ');
       await repo.save(
         userId: uid,
-        fullName: profile?.fullName ?? 'Speaker',
+        fullName:
+            profile?.fullName ??
+            ref.read(currentUserProvider)?.name ??
+            'Speaker',
         nickname: profile?.nickname ?? '',
         language: language.name,
-        practicePurpose: _practiceOptions
-            .where(_selectedPractices.contains)
-            .join(', '),
+        practicePurpose: goals.isEmpty ? 'Public Speaking' : goals,
         onboardingComplete: true,
       );
+      if (!mounted || ref.read(currentUidProvider) != uid) return;
+      ref.read(selectedLanguageProvider.notifier).state = language.code;
+      context.go(AppRoutes.home);
+    } catch (_) {
+      if (mounted && ref.read(currentUidProvider) == uid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not save your preferences on this device. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    if (mounted) context.go(AppRoutes.home);
   }
 
   void _previous() {
+    if (_saving) return;
     if (_page > 0) {
       setState(() => _page = 0);
     }
@@ -111,7 +157,12 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
         title: 'Preference ${_page + 1} of 2',
         showBack: _page > 0,
         onBack: _previous,
-        actions: [TextButton(onPressed: _finish, child: const Text('Skip'))],
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _finish,
+            child: const Text('Skip'),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -120,188 +171,217 @@ class _PersonalizationScreenState extends ConsumerState<PersonalizationScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
               child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Progress Bar
-              Row(
-                children: List.generate(
-                  2,
-                  (index) => Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      height: 6,
-                      margin: EdgeInsets.only(right: index == 1 ? 0 : 8),
-                      decoration: BoxDecoration(
-                        color: index <= _page ? AppColors.blue : AppColors.line,
-                        borderRadius: BorderRadius.circular(8),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Progress Bar
+                  Row(
+                    children: List.generate(
+                      2,
+                      (index) => Expanded(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          height: 6,
+                          margin: EdgeInsets.only(right: index == 1 ? 0 : 8),
+                          decoration: BoxDecoration(
+                            color: index <= _page
+                                ? AppColors.blue
+                                : AppColors.line,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 28),
+                  const SizedBox(height: 28),
 
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Page Title & Subtitle
-                      Text(
-                        isLanguagePage
-                            ? 'What language would you like to use?'
-                            : 'What are you practicing for? (Select all that apply)',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(letterSpacing: -0.5, height: 1.25),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        isLanguagePage
-                            ? 'Select your preferred language with flag icon & flag name.'
-                            : 'Choose all speaking formats relevant to your goals from the dropdown.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.secondaryText(context),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // PAGE 1: Select Language (with Flag Icon & Flag Name) - Dropdown
-                      if (isLanguagePage) ...[
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedLanguage,
-                          decoration: const InputDecoration(
-                            labelText: 'Language',
-                            prefixIcon: Icon(Icons.language_rounded),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Page Title & Subtitle
+                          Text(
+                            isLanguagePage
+                                ? 'What language would you like to use?'
+                                : 'What are you practicing for? (Select all that apply)',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(letterSpacing: -0.5, height: 1.25),
                           ),
-                          items: _languages.map((lang) {
-                            final display = '${lang.flag} ${lang.name}';
-                            return DropdownMenuItem<String>(
-                              value: display,
+                          const SizedBox(height: 10),
+                          Text(
+                            isLanguagePage
+                                ? 'Select your preferred language with flag icon & flag name.'
+                                : 'Choose all speaking formats relevant to your goals from the dropdown.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.secondaryText(context),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // PAGE 1: Select Language (with Flag Icon & Flag Name) - Dropdown
+                          if (isLanguagePage) ...[
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _selectedLanguage,
+                              decoration: const InputDecoration(
+                                labelText: 'Language',
+                                prefixIcon: Icon(Icons.language_rounded),
+                              ),
+                              items: _languages.map((lang) {
+                                final display = '${lang.flag} ${lang.name}';
+                                return DropdownMenuItem<String>(
+                                  value: display,
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        lang.flag,
+                                        style: const TextStyle(fontSize: 20),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          lang.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: _saving
+                                  ? null
+                                  : (val) {
+                                      if (val != null) {
+                                        setState(() => _selectedLanguage = val);
+                                      }
+                                    },
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.sky,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.line),
+                              ),
                               child: Row(
                                 children: [
-                                  Text(
-                                    lang.flag,
-                                    style: const TextStyle(fontSize: 20),
+                                  const Icon(
+                                    Icons.info_outline_rounded,
+                                    color: AppColors.navy,
                                   ),
                                   const SizedBox(width: 12),
-                                  Text(
-                                    lang.name,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: Text(
+                                      'You can modify this anytime in Settings.',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: AppColors.navy,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _selectedLanguage = val);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.sky,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.line),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline_rounded,
-                                color: AppColors.navy,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'You can modify this anytime in Settings.',
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: AppColors.navy,
+                            ),
+                            const SizedBox(height: 36),
+                          ]
+                          // PAGE 2: What are you practicing for (select all that apply) - Dropdown
+                          else ...[
+                            const SizedBox(height: 8),
+                            ..._practiceOptions.map((option) {
+                              final isSelected = _selectedPractices.contains(
+                                option,
+                              );
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? AppColors.blue
+                                        : AppColors.line,
+                                    width: isSelected ? 1.5 : 1.0,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-                      ]
-                      // PAGE 2: What are you practicing for (select all that apply) - Dropdown
-                      else ...[
-                        const SizedBox(height: 8),
-                        ..._practiceOptions.map((option) {
-                          final isSelected = _selectedPractices.contains(
-                            option,
-                          );
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              side: BorderSide(
                                 color: isSelected
-                                    ? AppColors.blue
-                                    : AppColors.line,
-                                width: isSelected ? 1.5 : 1.0,
-                              ),
-                            ),
-                            color: isSelected ? AppColors.sky : Colors.white,
-                            child: CheckboxListTile(
-                              value: isSelected,
-                              onChanged: (selected) {
-                                setState(() {
-                                  if (selected == true) {
-                                    _selectedPractices.add(option);
-                                  } else {
-                                    _selectedPractices.remove(option);
-                                  }
-                                });
-                              },
-                              title: Text(
-                                option,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? AppColors.navy
-                                      : AppColors.primaryText(context),
+                                    ? AppColors.sky
+                                    : Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerLow,
+                                child: CheckboxListTile(
+                                  value: isSelected,
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? AppColors.navy
+                                        : AppColors.secondaryText(context),
+                                  ),
+                                  onChanged: _saving
+                                      ? null
+                                      : (selected) {
+                                          setState(() {
+                                            if (selected == true) {
+                                              _selectedPractices.add(option);
+                                            } else {
+                                              _selectedPractices.remove(option);
+                                            }
+                                          });
+                                        },
+                                  title: Text(
+                                    option,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isSelected
+                                          ? AppColors.navy
+                                          : AppColors.primaryText(context),
+                                    ),
+                                  ),
+                                  activeColor: AppColors.blue,
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
                                 ),
-                              ),
-                              activeColor: AppColors.blue,
-                              controlAffinity: ListTileControlAffinity.leading,
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 20),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Bottom-anchored action for the active preference page.
-              SizedBox(
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _next,
-                  child: Text(
-                    isLanguagePage ? 'Continue' : 'Build my personalized plan',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                              );
+                            }),
+                            const SizedBox(height: 20),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                  const SizedBox(height: 14),
+
+                  // Bottom-anchored action for the active preference page.
+                  ElevatedButton(
+                    onPressed: _saving ? null : _next,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                    ),
+                    child: Text(
+                      _saving
+                          ? 'Saving preferences…'
+                          : isLanguagePage
+                          ? 'Continue'
+                          : 'Build my personalized plan',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

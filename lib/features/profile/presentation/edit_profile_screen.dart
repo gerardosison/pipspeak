@@ -1,16 +1,13 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import '../../../core/models/user_profile.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/app_providers.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/models/user_profile.dart';
+import '../../../core/widgets/profile_photo.dart';
 import '../../../core/widgets/pip_buttons.dart';
 import '../../../core/widgets/pip_cards.dart';
 import '../../../core/widgets/pip_fields.dart';
@@ -68,26 +65,45 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (mounted) context.pop();
     } on ArgumentError catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${error.message}')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${error.message}')));
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not save your profile. Check the active account and retry.',
+            ),
+          ),
+        );
       }
     }
   }
 
   Future<void> _pickPhoto(UserProfile user) async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-      imageQuality: 85,
-    );
-    if (picked == null || user.uid.isEmpty) return;
-    final dir = await getApplicationDocumentsDirectory();
-    final target = File(p.join(dir.path, 'profile_${user.uid}.jpg'));
-    await File(picked.path).copy(target.path);
-    await ref
-        .read(profileRepositoryProvider)
-        .setPhotoPath(user.uid, target.path);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        imageQuality: 85,
+      );
+      if (picked == null || user.uid.isEmpty) return;
+      final photo = encodeProfilePhoto(await picked.readAsBytes());
+      if (!mounted || ref.read(currentUidProvider) != user.uid) return;
+      await ref.read(profileRepositoryProvider).setPhotoPath(user.uid, photo);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not save that photo. Choose a smaller image and retry.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -117,10 +133,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 // Avatar
                 Center(
                   child: Semantics(
-                    button: !kIsWeb,
-                    label: kIsWeb ? null : 'Change profile photo',
+                    button: true,
+                    label: 'Change profile photo',
                     child: GestureDetector(
-                      onTap: kIsWeb ? null : () => _pickPhoto(user),
+                      onTap: () => _pickPhoto(user),
                       child: Stack(
                         children: [
                           Container(
@@ -137,10 +153,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                               ),
                             ),
                             child: ClipOval(
-                              child: !kIsWeb &&
-                                      user.photoPath?.isNotEmpty == true
-                                  ? Image.file(
-                                      File(user.photoPath!),
+                              child: profilePhoto(user.photoPath) != null
+                                  ? Image(
+                                      image: profilePhoto(user.photoPath)!,
                                       width: 104,
                                       height: 104,
                                       fit: BoxFit.cover,
@@ -150,28 +165,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                   : _avatarInitial(text, scheme),
                             ),
                           ),
-                          if (!kIsWeb)
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: scheme.primary,
-                                  border: Border.all(
-                                    color: scheme.surfaceContainerLowest,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.photo_camera,
-                                  size: 16,
-                                  color: Colors.white,
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: scheme.primary,
+                                border: Border.all(
+                                  color: scheme.surfaceContainerLowest,
+                                  width: 2,
                                 ),
                               ),
+                              child: const Icon(
+                                Icons.photo_camera,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                             ),
+                          ),
                         ],
                       ),
                     ),
@@ -180,9 +194,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    kIsWeb
-                        ? 'Profile photos are available in the installed app'
-                        : 'Tap to change avatar',
+                    'Tap to change avatar',
                     style: text.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -207,13 +219,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         controller: _nickname,
                       ),
                       const SizedBox(height: 14),
-                      if (user.email.isNotEmpty || user.username.isNotEmpty) ...[
+                      if (user.email.isNotEmpty ||
+                          user.username.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
                           [
                             if (user.email.isNotEmpty) user.email,
-                            if (user.username.isNotEmpty)
-                              '@${user.username}',
+                            if (user.username.isNotEmpty) '@${user.username}',
                           ].join(' • '),
                           style: text.bodyMedium?.copyWith(
                             color: scheme.onSurface,
@@ -234,7 +246,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                if (!kIsWeb) ...[
+                ...[
                   PipGhostButton(
                     label: 'Change profile photo',
                     onPressed: () => _pickPhoto(user),

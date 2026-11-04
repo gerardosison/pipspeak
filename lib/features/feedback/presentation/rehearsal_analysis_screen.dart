@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -196,9 +197,7 @@ class _RehearsalAnalysisScreenState
                             ? 'Unavailable'
                             : '${posture.round()}/100',
                         AppColors.secondaryContainer,
-                        posture == null
-                            ? 'No saved camera measurement'
-                            : 'Saved camera-based heuristic; eye contact is not measured',
+                        posture == null ? 'No saved camera measurement' : 'Saved camera-based heuristic; eye contact is not measured',
                       ),
                       _metricBar(
                         'Torso variation',
@@ -207,9 +206,7 @@ class _RehearsalAnalysisScreenState
                             ? 'Unavailable'
                             : '${swayPercent.toStringAsFixed(1)}% frame width',
                         AppColors.tertiaryFixed,
-                        swayPercent == null
-                            ? 'No saved camera measurement'
-                            : 'Image-relative estimate; camera movement affects this value',
+                        swayPercent == null ? 'No saved camera measurement' : 'Image-relative estimate; camera movement affects this value',
                       ),
                     ],
                   )
@@ -283,14 +280,42 @@ class _RehearsalAnalysisScreenState
                       ),
                     ),
                     PipSecondaryButton(
-                      label: 'Export feedback',
+                      label: 'Copy feedback',
                       icon: Icons.ios_share,
-                      onPressed: () =>
+                      onPressed: () async {
+                        final summary = StringBuffer()
+                          ..writeln('PipSpeak — ${session.title}')
+                          ..writeln(
+                            'Duration: ${session.duration.inSeconds} seconds',
+                          )
+                          ..writeln('Saved score: ${session.paceScore}/100')
+                          ..writeln('Stars earned: ${session.starsEarned}');
+                        if (report != null) {
+                          summary.writeln(report.summary);
+                          for (final item in report.improvements) {
+                            summary.writeln(
+                              '${item.title}: ${item.actionableTip}',
+                            );
+                          }
+                          for (final limitation in report.limitations) {
+                            summary.writeln('Limitation: $limitation');
+                          }
+                        } else {
+                          summary.writeln(
+                            'Detailed feedback is available on the original device.',
+                          );
+                        }
+                        await Clipboard.setData(
+                          ClipboardData(text: summary.toString()),
+                        );
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Export coming soon (mock)'),
+                              content: Text('Saved feedback copied.'),
                             ),
-                          ),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),

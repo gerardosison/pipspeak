@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../../../app/app_router.dart';
 import '../../../core/models/user_profile.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/widgets/pip_misc.dart';
+import '../../../core/widgets/pip_cards.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, this.location = AppRoutes.home, this.child});
@@ -114,9 +116,7 @@ class HomeScreen extends StatelessWidget {
                         child: extendedRail
                             ? Text(
                                 'PipSpeak',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               )
                             : const Icon(Icons.record_voice_over_rounded),
@@ -173,9 +173,8 @@ class HomeScreen extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.shadow.withValues(alpha: 0.10),
+                        color: Theme.of(context).colorScheme.shadow
+                            .withValues(alpha: 0.10),
                         blurRadius: 18,
                         offset: const Offset(0, 5),
                       ),
@@ -199,7 +198,12 @@ class HomeScreen extends StatelessWidget {
                             Icons.description_outlined,
                             'Documents',
                           ),
-                          _destination(context, 2, Icons.mic_rounded, 'Practice'),
+                          _destination(
+                            context,
+                            2,
+                            Icons.mic_rounded,
+                            'Practice',
+                          ),
                           _destination(
                             context,
                             3,
@@ -322,7 +326,7 @@ class HomeLandingScreen extends ConsumerWidget {
         title: const Text('Log out?'),
         content: Text(
           pending > 0
-              ? '$pending session(s) have not synced yet. They stay saved on '
+              ? '$pending change(s) have not synced yet. They stay saved on '
                     'this device and will upload next time you sign in here.'
               : 'You can come back anytime and continue your speaking journey.',
         ),
@@ -543,6 +547,16 @@ class _HomeTabView extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (kIsWeb) ...[
+              PipCard(
+                child: Text(
+                  'Browser preview: account, progress and document text extraction work here. Offline AI chat and speech feedback currently require the Android app.',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: scheme.onSurface),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text(
               '${_greeting(DateTime.now())}, ${user.nickname}!',
               style: Theme.of(context).textTheme.displaySmall,
@@ -655,9 +669,8 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 2),
           Text(

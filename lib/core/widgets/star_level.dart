@@ -68,22 +68,25 @@ class LevelProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          runSpacing: 8,
           children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.military_tech,
-                  color: AppColors.amber,
-                  size: 20,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Level $level Speaker',
-                  style: text.labelLarge?.copyWith(color: scheme.primary),
-                ),
-              ],
+            Text.rich(
+              TextSpan(
+                children: [
+                  const WidgetSpan(
+                    child: Icon(
+                      Icons.military_tech,
+                      color: AppColors.amber,
+                      size: 20,
+                    ),
+                  ),
+                  TextSpan(text: ' Level $level Speaker'),
+                ],
+              ),
+              style: text.labelLarge?.copyWith(color: scheme.primary),
             ),
             Text(
               '$stars / $needed stars',

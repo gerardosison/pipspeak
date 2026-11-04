@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -70,91 +71,104 @@ class ScriptAnalysisScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${doc.wordCount} words • ~${doc.estimatedMinutes} min read',
+                              '${doc.wordCount} words • ~${doc.estimatedMinutes.toStringAsFixed(1)} min read',
                               style: text.bodySmall?.copyWith(
                                 color: scheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 8),
+                            PipBadge(
+                              label: doc.aiAnalyzed
+                                  ? 'On-device Qwen'
+                                  : 'Text only',
+                              icon: Icons.offline_bolt_outlined,
+                            ),
                           ],
                         ),
-                      ),
-                      const PipBadge(
-                        label: 'On-device Qwen',
-                        icon: Icons.offline_bolt_outlined,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (!doc.aiAnalyzed) ...[
+                  PipCard(
+                    child: Text(
+                      'Your script was extracted locally. AI tutoring is available in the Android app; the browser has not generated AI feedback.',
+                      style: text.bodyMedium?.copyWith(color: scheme.onSurface),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  PipCard(child: SelectableText(doc.extractedText)),
+                ],
                 if (doc.keySections.isNotEmpty) ...[
                   Text(doc.keySections.join('\n'), style: text.bodySmall),
                   const SizedBox(height: 12),
                 ],
-                PipResponsiveGrid(
-                  minItemWidth: 420,
-                  maxColumns: 2,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SectionHeader(title: 'Covered topics'),
-                        const SizedBox(height: 8),
-                        PipCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              for (final s in doc.coveredTopics)
-                                _bulletRow(
-                                  context,
-                                  Icons.check_circle,
-                                  AppColors.tertiaryFixed,
-                                  s,
-                                ),
-                              if (doc.coveredTopics.isEmpty)
-                                const Text(
-                                  'Walang covered topics na naibalik ng model.',
-                                ),
-                            ],
+                if (doc.aiAnalyzed)
+                  PipResponsiveGrid(
+                    minItemWidth: 420,
+                    maxColumns: 2,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SectionHeader(title: 'Covered topics'),
+                          const SizedBox(height: 8),
+                          PipCard(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                for (final s in doc.coveredTopics)
+                                  _bulletRow(
+                                    context,
+                                    Icons.check_circle,
+                                    AppColors.tertiaryFixed,
+                                    s,
+                                  ),
+                                if (doc.coveredTopics.isEmpty)
+                                  const Text(
+                                    'Walang covered topics na naibalik ng model.',
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SectionHeader(title: 'Gaps to fix'),
-                        const SizedBox(height: 8),
-                        PipCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              for (final s in doc.missingOrWeakTopics)
-                                _bulletRow(
-                                  context,
-                                  Icons.lightbulb,
-                                  AppColors.secondaryFixed,
-                                  s,
-                                ),
-                              for (final s in doc.speechImprovements)
-                                _bulletRow(
-                                  context,
-                                  Icons.tips_and_updates,
-                                  AppColors.secondaryContainer,
-                                  s,
-                                ),
-                              if (doc.missingOrWeakTopics.isEmpty &&
-                                  doc.speechImprovements.isEmpty)
-                                const Text(
-                                  'Walang specific na gaps o suggestions na naibalik.',
-                                ),
-                            ],
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SectionHeader(title: 'Gaps to fix'),
+                          const SizedBox(height: 8),
+                          PipCard(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                for (final s in doc.missingOrWeakTopics)
+                                  _bulletRow(
+                                    context,
+                                    Icons.lightbulb,
+                                    AppColors.secondaryFixed,
+                                    s,
+                                  ),
+                                for (final s in doc.speechImprovements)
+                                  _bulletRow(
+                                    context,
+                                    Icons.tips_and_updates,
+                                    AppColors.secondaryContainer,
+                                    s,
+                                  ),
+                                if (doc.missingOrWeakTopics.isEmpty &&
+                                    doc.speechImprovements.isEmpty)
+                                  const Text(
+                                    'Walang specific na gaps o suggestions na naibalik.',
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                        ],
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 20),
                 PrimaryButton(
                   label: 'Practice this speech',
@@ -163,27 +177,40 @@ class ScriptAnalysisScreen extends ConsumerWidget {
                       context.push(AppRoutes.practiceSetup, extra: doc.title),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: PipSecondaryButton(
-                        label: 'Re-analyze',
-                        icon: Icons.refresh,
-                        onPressed: () => context.go(AppRoutes.documentUpload),
-                      ),
+                    PipSecondaryButton(
+                      label: 'Re-analyze',
+                      icon: Icons.refresh,
+                      onPressed: () => context.go(AppRoutes.documentUpload),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: PipGhostButton(
-                        label: 'Export cue cards',
-                        icon: Icons.style,
-                        onPressed: () =>
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Cue cards coming soon (mock)'),
+                    const SizedBox(height: 10),
+                    PipGhostButton(
+                      label: 'Copy cue cards',
+                      icon: Icons.style,
+                      onPressed: () async {
+                        final paragraphs = doc.extractedText
+                            .split(RegExp(r'\n+'))
+                            .map((s) => s.trim())
+                            .where((s) => s.isNotEmpty)
+                            .take(12)
+                            .toList();
+                        final cards = [
+                          for (var i = 0; i < paragraphs.length; i++)
+                            'CARD ${i + 1} — SOURCE EXCERPT\n${paragraphs[i].length > 350 ? '${paragraphs[i].substring(0, 350)}…' : paragraphs[i]}',
+                        ].join('\n\n');
+                        await Clipboard.setData(ClipboardData(text: cards));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Source-based cue cards copied to clipboard.',
                               ),
                             ),
-                      ),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),

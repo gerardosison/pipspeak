@@ -226,8 +226,8 @@ class SettingsScreen extends ConsumerWidget {
                         context,
                         Icons.history_toggle_off,
                         'Recording Cache',
-                        'Auto-clears local practice recordings',
-                        value: 'Keep 30 days',
+                        'Manage local recordings and synced summaries',
+                        value: 'On this device',
                         onTap: () => context.push(AppRoutes.privacy),
                       ),
                       _navRow(
@@ -243,7 +243,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
                 Center(
                   child: Text(
-                    'PipSpeak v2.4 • HawkaBuild Edition',
+                    'PipSpeak • Public speaking practice',
                     style: text.labelSmall?.copyWith(color: scheme.outline),
                   ),
                 ),

@@ -1,4 +1,4 @@
-/// Signed-in user's profile + gamification state (mock-backed).
+/// Signed-in user's profile + gamification state from Firebase identity and SQLite.
 class UserProfile {
   const UserProfile({
     required this.name,

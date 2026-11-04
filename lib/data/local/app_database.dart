@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
@@ -120,60 +122,91 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) => migrator.createAll(),
     onUpgrade: (migrator, from, to) async {
-      if (from < 2) {
-        await migrator.createTable(userProfiles);
-      }
-      if (from < 3) {
-        await migrator.addColumn(practiceRecords, practiceRecords.isTest);
-      }
-      if (from < 4) {
-        await migrator.createTable(deviceSettings);
-      }
-      if (from < 3 || from < 4) {
-        await customStatement(
-          'UPDATE practice_records SET is_test = 1 WHERE practice_purpose = ?',
-          ['Database test'],
-        );
-      }
-      if (from < 5) {
-        for (final column in [
-          practiceRecords.language,
-          practiceRecords.topic,
-          practiceRecords.overallScore,
-          practiceRecords.wordsPerMinute,
-          practiceRecords.fillerCount,
-          practiceRecords.pauseCount,
-          practiceRecords.postureScore,
-          practiceRecords.bodySwayCm,
-          practiceRecords.gestureScore,
-          practiceRecords.hasLocalDetails,
-        ]) {
-          await migrator.addColumn(practiceRecords, column);
+      // Different earlier branches both used version 5 for different schemas.
+      // Inspect actual tables/columns; never reset the database to repair them.
+      for (final table in allTables) {
+        final exists = await customSelect(
+          'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+          variables: [
+            Variable.withString('table'),
+            Variable.withString(table.actualTableName),
+          ],
+        ).get();
+        if (exists.isEmpty) {
+          await migrator.createTable(table);
+          continue;
         }
-        if (from >= 2) {
-          for (final column in [
-            userProfiles.username,
-            userProfiles.email,
-            userProfiles.school,
-            userProfiles.photoPath,
-          ]) {
-            await migrator.addColumn(userProfiles, column);
+        final columns = await customSelect(
+          'PRAGMA table_info("${table.actualTableName}")',
+        ).get();
+        final names = columns.map((row) => row.read<String>('name')).toSet();
+        for (final column in table.$columns) {
+          if (!names.contains(column.$name)) {
+            await migrator.addColumn(table, column);
           }
         }
-        await migrator.createTable(sessionDetails);
-        await migrator.createTable(localDocuments);
       }
+      await customStatement(
+        'UPDATE practice_records SET is_test = 1 WHERE practice_purpose = ?',
+        ['Database test'],
+      );
+      await _recoverLegacyDetails();
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> _recoverLegacyDetails() async {
+    final columns = await customSelect('PRAGMA table_info(practice_records)')
+        .get();
+    if (!columns.any(
+      (row) => row.read<String>('name') == 'local_analysis_json',
+    )) {
+      return;
+    }
+    final rows = await customSelect(
+      'SELECT id, user_id, local_analysis_json FROM practice_records WHERE local_analysis_json IS NOT NULL',
+    ).get();
+    for (final row in rows) {
+      try {
+        final decoded = jsonDecode(row.read<String>('local_analysis_json'));
+        if (decoded is! Map) continue;
+        final report = decoded['report'] is Map
+            ? decoded['report'] as Map
+            : decoded;
+        if (report['summary'] is! String || report['overallScore'] is! num) {
+          continue;
+        }
+        final transcript = decoded['transcript'];
+        final audio = decoded['audioPath'];
+        await into(sessionDetails).insert(
+          SessionDetailsCompanion.insert(
+            sessionId: row.read<String>('id'),
+            userId: row.read<String>('user_id'),
+            reportJson: jsonEncode(report),
+            transcript: Value(transcript is String ? transcript : ''),
+            audioPath: Value(audio is String ? audio : null),
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+        await (update(
+          practiceRecords,
+        )..where((r) => r.id.equals(row.read<String>('id')))).write(
+          const PracticeRecordsCompanion(hasLocalDetails: Value(true)),
+        );
+      } on FormatException {
+        // Preserve an unrecognized original payload; malformed legacy data must
+        // not prevent the rest of the account history from opening.
+      }
+    }
+  }
 
   Stream<List<PracticeRecord>> watchRecords(String userId) {
     return (select(practiceRecords)
@@ -189,15 +222,15 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
+  /// Counts every account-owned pending change, including profile edits.
   Stream<int> watchPendingCount(String userId) {
-    final count = practiceRecords.id.count();
-    final query = selectOnly(practiceRecords)
-      ..addColumns([count])
-      ..where(
-        practiceRecords.userId.equals(userId) &
-            practiceRecords.needsUpload.equals(true),
-      );
-    return query.map((row) => row.read(count) ?? 0).watchSingle();
+    return customSelect(
+      'SELECT '
+      '(SELECT COUNT(*) FROM practice_records WHERE user_id = ? AND needs_upload = 1) + '
+      '(SELECT COUNT(*) FROM user_profiles WHERE user_id = ? AND needs_upload = 1) AS pending_total',
+      variables: [Variable.withString(userId), Variable.withString(userId)],
+      readsFrom: {practiceRecords, userProfiles},
+    ).watchSingle().map((row) => row.read<int>('pending_total'));
   }
 
   Future<void> markUploaded(String userId, String id) async {

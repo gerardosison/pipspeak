@@ -21,6 +21,9 @@ teammate and release build, without editing a developer's Pub cache:
 - Native cancellation is reset before scheduling a request, not inside the
   decode function, and the context has an abort callback for active CPU decode.
 - Private prompt text and per-token IDs are no longer written to Android logs.
+- Java UTF-16 prompts are converted to standard UTF-8, including surrogate pairs.
+  Generated UTF-8 is decoded incrementally across token boundaries and passed to
+  Java as UTF-16; Filipino text, emoji and embedded NUL bytes are preserved.
 - ChatML with `/no_think` seeds Qwen3's empty thinking block, rather than spending
   the short mobile output budget on hidden reasoning.
 
@@ -28,5 +31,11 @@ The app coordinator adds context limits, serialization, request-specific
 cancellation, deadlines and a fail-closed state if stopping does not complete.
 
 Regression tests: `flutter test test/llama_plugin_lifecycle_test.dart`.
+The actual Unicode bridge is also host-tested with:
+
+```sh
+g++ -std=c++17 -O2 -Wall -Wextra -pedantic native_tests/unicode_bridge_test.cpp -o /tmp/pipspeak-unicode-check
+/tmp/pipspeak-unicode-check
+```
 Actual JNI/Android compilation and physical-device inference are separate checks;
 passing the Dart tests does not validate GPU/ABI support or model performance.

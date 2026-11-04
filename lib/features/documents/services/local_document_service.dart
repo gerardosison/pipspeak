@@ -33,6 +33,7 @@ class LocalDocumentService implements DocumentService {
     Uint8List bytes, {
     void Function(String status)? onProgress,
     InferenceCancellation? cancellation,
+    bool textOnlyPreview = false,
   }) async {
     cancellation?.throwIfCancelled();
     if (bytes.isEmpty) {
@@ -65,6 +66,21 @@ class LocalDocumentService implements DocumentService {
     }
     if (DocumentAnalysisText.isUnreadable(extractedText)) {
       throw const DocumentUnreadableException();
+    }
+
+    if (textOnlyPreview) {
+      final words = extractedText.split(RegExp(r'\s+')).length;
+      return DocumentResult(
+        documentId: '${DateTime.now().microsecondsSinceEpoch}',
+        title: p.basename(fileName),
+        extractedText: extractedText,
+        wordCount: words,
+        estimatedMinutes: words / 140,
+        aiAnalyzed: false,
+        keySections: const [
+          'Text extraction only. AI tutoring requires the Android app; no AI analysis was performed.',
+        ],
+      );
     }
 
     onProgress?.call('Preparing your script for the AI Coach…');

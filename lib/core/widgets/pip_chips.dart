@@ -52,8 +52,8 @@ class PipBadge extends StatelessWidget {
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: fg, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.labelMedium
+                  ?.copyWith(color: fg, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -71,11 +71,11 @@ class MintBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PipBadge(
-        label: label,
-        icon: icon,
-        background: AppColors.tertiaryFixed,
-        foreground: AppColors.onTertiaryFixedVariant,
-      );
+    label: label,
+    icon: icon,
+    background: AppColors.tertiaryFixed,
+    foreground: AppColors.onTertiaryFixedVariant,
+  );
 }
 
 /// Sky "info" badge.
@@ -87,11 +87,11 @@ class SkyBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PipBadge(
-        label: label,
-        icon: icon,
-        background: AppColors.secondaryFixed,
-        foreground: AppColors.onSecondaryFixedVariant,
-      );
+    label: label,
+    icon: icon,
+    background: AppColors.secondaryFixed,
+    foreground: AppColors.onSecondaryFixedVariant,
+  );
 }
 
 /// Gold achievement chip — reserved for stars / streaks / XP (DESIGN.md rule).
@@ -103,11 +103,11 @@ class StarChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PipBadge(
-        label: label,
-        icon: icon,
-        background: AppColors.gold,
-        foreground: AppColors.navy,
-      );
+    label: label,
+    icon: icon,
+    background: AppColors.gold,
+    foreground: AppColors.navy,
+  );
 }
 
 /// Small circular selectable chip used for options (languages, goals…).
@@ -140,9 +140,7 @@ class PipOptionChip extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: selected
-                ? scheme.primary
-                : scheme.surfaceContainerLow,
+            color: selected ? scheme.primary : scheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(AppTheme.pillRadius),
             border: Border.all(
               color: selected
@@ -154,19 +152,21 @@ class PipOptionChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon,
-                    size: 16,
-                    color: selected
-                        ? scheme.onPrimary
-                        : scheme.onSurfaceVariant),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 6),
               ],
-              Text(
-                label,
-                style: text.labelLarge?.copyWith(
-                  color: selected
-                      ? scheme.onPrimary
-                      : scheme.onSurfaceVariant,
+              Flexible(
+                child: Text(
+                  label,
+                  style: text.labelLarge?.copyWith(
+                    color: selected
+                        ? scheme.onPrimary
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],

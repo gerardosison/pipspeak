@@ -3,6 +3,7 @@ class DocumentResult {
   final String title;
   final String extractedText;
   final bool isReadable;
+  final bool aiAnalyzed;
   final List<String> keySections;
   final String? rejectionReason;
   final List<String> coveredTopics;
@@ -16,6 +17,7 @@ class DocumentResult {
     required this.title,
     required this.extractedText,
     this.isReadable = true,
+    this.aiAnalyzed = true,
     this.keySections = const [],
     this.rejectionReason,
     this.coveredTopics = const [],

@@ -18,6 +18,7 @@ import '../../../core/widgets/pip_fields.dart';
 import '../../../core/widgets/pip_mascot.dart';
 import '../../../core/widgets/pip_misc.dart';
 import 'document_processing_screen.dart';
+import 'saved_documents_section.dart';
 
 /// Document Upload — dashed drop zone, purpose chips, target pace,
 /// analyze CTA (Stitch `document_upload_speech_script`).
@@ -47,16 +48,28 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   }
 
   Future<void> _pickFile() async {
-    final file = await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'docx', 'txt'],
-    );
-    if (file == null || !mounted) return;
-    setState(() {
-      _file = file;
-      _fileName = file.name;
-      _unreadable = false;
-    });
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'docx', 'txt'],
+      );
+      if (file == null || !mounted) return;
+      setState(() {
+        _file = file;
+        _fileName = file.name;
+        _unreadable = false;
+      });
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open that file. Choose a readable PDF, DOCX or TXT file and retry.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   /// Keeps pasted text in memory and sends it through the same local pipeline.
@@ -273,8 +286,10 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: 12,
+                        runSpacing: 8,
                         children: [
                           Text(
                             'Target pace',
@@ -310,6 +325,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
                   icon: _busy ? null : Icons.auto_awesome,
                   onPressed: (_fileName == null || _busy) ? null : _analyze,
                 ),
+                const SavedDocumentsSection(),
               ],
             ),
           ),

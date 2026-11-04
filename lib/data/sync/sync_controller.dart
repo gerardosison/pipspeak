@@ -51,11 +51,24 @@ class SyncController extends StateNotifier<SyncState>
     if (uid == null || state.phase == SyncPhase.syncing) return;
     state = SyncState(SyncPhase.syncing, lastSyncedAt: state.lastSyncedAt);
     try {
+      final deleting = await _ref
+          .read(appDatabaseProvider)
+          .setting('deleting:$uid');
+      if (!mounted || _ref.read(currentUidProvider) != uid) return;
+      if (deleting == 'true') {
+        state = const SyncState(
+          SyncPhase.failed,
+          message: 'Account deletion is pending. Finish deleting the account or sign out.',
+        );
+        return;
+      }
       await _ref.read(progressRepositoryProvider).sync(uid);
       if (!mounted || _ref.read(currentUidProvider) != uid) return;
       state = SyncState(SyncPhase.synced, lastSyncedAt: DateTime.now());
     } on AccountChangedException {
-      if (mounted) state = const SyncState(SyncPhase.idle);
+      if (mounted && _ref.read(currentUidProvider) == uid) {
+        state = const SyncState(SyncPhase.idle);
+      }
     } on FirebaseException catch (error) {
       if (!mounted || _ref.read(currentUidProvider) != uid) return;
       state = switch (error.code) {
@@ -115,7 +128,12 @@ class SyncLabel {
 
 final syncLabelProvider = Provider<SyncLabel>((ref) {
   final sync = ref.watch(syncControllerProvider);
-  final pending = ref.watch(pendingSyncCountProvider).valueOrNull ?? 0;
+  final pendingState = ref.watch(pendingSyncCountProvider);
+  if (pendingState.hasError) {
+    return const SyncLabel('Could not read saved changes', isError: true);
+  }
+  if (!pendingState.hasValue) return const SyncLabel('Checking saved changes…');
+  final pending = pendingState.valueOrNull ?? 0;
   switch (sync.phase) {
     case SyncPhase.syncing:
       return const SyncLabel('Syncing…');

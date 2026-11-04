@@ -5,6 +5,8 @@ import '../../permissions/permission_service.dart';
 /// to demo the denied state.
 class MockPermissionService implements PermissionService {
   bool granted = false;
+  @override
+  Future<bool> openSettings() async => false;
 
   @override
   Future<bool> requestCameraAndMic() async {

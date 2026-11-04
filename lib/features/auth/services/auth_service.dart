@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:drift/drift.dart' show Value;
 
 import '../../../data/local/app_database.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../data/storage/account_files.dart';
 
 /// User-facing authentication error.
 class AuthFailure implements Exception {
@@ -23,12 +25,15 @@ class AuthService {
     required this.firestore,
     required this.profiles,
     required this.database,
+    this.cleanupLocalFiles,
   });
 
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
   final ProfileRepository profiles;
   final AppDatabase database;
+  final Future<void> Function(String userId)? cleanupLocalFiles;
+  final Map<String, Future<void>> _openingProfiles = {};
 
   static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -53,7 +58,9 @@ class AuthService {
         );
       }
       if (email.isEmpty) {
-        throw const AuthFailure('No account uses that username.');
+        throw const AuthFailure(
+          'Use your email the first time you sign in on this device. Username sign-in is available after your profile is saved here.',
+        );
       }
     }
     try {
@@ -62,7 +69,7 @@ class AuthService {
         password: password,
       );
       final user = credential.user!;
-      await _ensureLocalProfile(user);
+      await ensureLocalProfile(user);
       return user;
     } on FirebaseAuthException catch (error) {
       throw AuthFailure(_message(error));
@@ -77,8 +84,12 @@ class AuthService {
     required String password,
   }) async {
     final cleanEmail = email.trim();
-    if (fullName.trim().isEmpty) {
-      throw const AuthFailure('Enter your full name.');
+    if (fullName.trim().isEmpty ||
+        fullName.trim().length > 80 ||
+        nickname.trim().length > 40) {
+      throw const AuthFailure(
+        'Use a full name up to 80 characters and nickname up to 40 characters.',
+      );
     }
     if (!isValidEmail(cleanEmail)) {
       throw const AuthFailure('Enter a valid email address.');
@@ -182,19 +193,37 @@ class AuthService {
       await user.reauthenticateWithCredential(
         EmailAuthProvider.credential(email: user.email!, password: password),
       );
+      await database.setSetting('deleting:$uid', 'true');
+      profiles.guard.pauseForDeletion(uid);
       final userDoc = firestore.collection('users').doc(uid);
-      final sessions = await userDoc.collection('sessions').get();
-      final batch = firestore.batch();
-      for (final doc in sessions.docs) {
-        batch.delete(doc.reference);
+      // Paginate; a Firestore batch cannot contain an unbounded account history.
+      while (true) {
+        final sessions = await userDoc
+            .collection('sessions')
+            .limit(250)
+            .get(const GetOptions(source: Source.server));
+        if (sessions.docs.isEmpty) break;
+        final batch = firestore.batch();
+        for (final doc in sessions.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
       }
       final profile = await profiles.get(uid);
       final username = profile?.username ?? '';
       if (username.isNotEmpty) {
-        batch.delete(firestore.collection('usernames').doc(username));
+        final reservation = firestore.collection('usernames').doc(username);
+        final snapshot = await reservation.get(
+          const GetOptions(source: Source.server),
+        );
+        if (snapshot.exists && snapshot.data()?['uid'] == uid) {
+          await reservation.delete();
+        }
       }
-      batch.delete(userDoc);
-      await batch.commit();
+      await userDoc.delete();
+      // Erase account-owned recordings before removing the credentials needed
+      // to retry deletion. Database rows remain until all cleanup succeeds.
+      await (cleanupLocalFiles?.call(uid) ?? removeAccountFiles(database, uid));
       await user.delete();
     } on FirebaseAuthException catch (error) {
       throw AuthFailure(_message(error));
@@ -203,33 +232,67 @@ class AuthService {
         'Could not delete cloud data (${error.code}). Check your '
         'connection and try again.',
       );
+    } on Object {
+      throw const AuthFailure(
+        'Account deletion did not finish. Your remaining local data is preserved. Retry deletion while connected.',
+      );
     }
     await database.deleteAccountData(uid);
+    await database.removeSetting('deleting:$uid');
   }
 
   Future<void> signOut() => auth.signOut();
 
-  Future<void> _ensureLocalProfile(User user) async {
+  /// Opens a cached profile immediately, including offline. A device without a
+  /// cached profile must confirm the cloud state before creating local defaults.
+  Future<void> ensureLocalProfile(User user) =>
+      _openingProfiles[user.uid] ??= _openLocalProfile(user).whenComplete(() {
+        _openingProfiles.remove(user.uid);
+      });
+
+  Future<void> _openLocalProfile(User user) async {
+    profiles.guard.check(user.uid);
     final existing = await profiles.get(user.uid);
-    if (existing != null) return;
+    profiles.guard.check(user.uid);
+    if (existing != null) {
+      await _cacheEmail(user);
+      return;
+    }
     try {
       await profiles.sync(user.uid);
     } on Object {
-      // Offline: fall back to Firebase account details below.
+      profiles.guard.check(user.uid);
+      throw const AuthFailure(
+        'Connect to the internet to load your saved profile on this device, then retry. Your cloud profile has not been replaced.',
+      );
     }
-    if (await profiles.get(user.uid) != null) return;
+    profiles.guard.check(user.uid);
+    final downloaded = await profiles.get(user.uid);
+    profiles.guard.check(user.uid);
+    if (downloaded != null) {
+      await _cacheEmail(user);
+      return;
+    }
     final name = user.displayName?.trim().isNotEmpty == true
         ? user.displayName!
         : (user.email ?? 'Speaker').split('@').first;
     await profiles.save(
       userId: user.uid,
       fullName: name,
-      nickname: name.split(' ').first,
+      nickname: '',
       language: 'English (US)',
       practicePurpose: 'Class Presentation',
       onboardingComplete: false,
       email: user.email,
     );
+  }
+
+  Future<void> _cacheEmail(User user) async {
+    profiles.guard.check(user.uid);
+    if (user.email == null) return;
+    await (database.update(database.userProfiles)
+          ..where((row) => row.userId.equals(user.uid)))
+        .write(UserProfilesCompanion(email: Value(user.email!)));
   }
 
   static String _message(FirebaseAuthException error) {

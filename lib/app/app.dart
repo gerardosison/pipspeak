@@ -12,6 +12,13 @@ class PipSpeakApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    ref.listen(currentUidProvider, (previous, next) {
+      if (previous == next) return;
+      ref.invalidate(lastReportProvider);
+      ref.invalidate(lastSpeechMetricsProvider);
+      ref.invalidate(lastPoseMetricsProvider);
+      ref.invalidate(lastDocAnalysisProvider);
+    });
     // Keep the sync controller alive for the whole app session.
     ref.listen(syncControllerProvider, (_, _) {});
     return MaterialApp.router(

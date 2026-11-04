@@ -231,8 +231,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         if (history.isEmpty)
           PipEmptyState(
             title: 'No practice sessions yet',
-            message:
-                'Your first rehearsal will add pace, filler word, and posture insights here.',
+            message: 'Your first rehearsal will add pace, filler word, and posture insights here.',
             asset: PipAsset.pacing,
             actionLabel: 'Start practicing',
             actionIcon: Icons.mic_rounded,
@@ -267,11 +266,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  levelCard,
-                  const SizedBox(height: 20),
-                  achievements,
-                ],
+                children: [levelCard, const SizedBox(height: 20), achievements],
               ),
             ),
             const SizedBox(width: 20),
@@ -285,7 +280,11 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   // ------------------------------------------------- progress_growth_1
   Widget _milestonesView(UserProfile user, TextTheme text, ColorScheme scheme) {
     final milestones = [
-      ('First rehearsal', 'Complete your first practice', user.totalSessions > 0),
+      (
+        'First rehearsal',
+        'Complete your first practice',
+        user.totalSessions > 0,
+      ),
       (
         'Earn a star',
         'Improve on a previous speech',
@@ -349,52 +348,52 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           children: [
             for (var i = 0; i < milestones.length; i++)
               PipCard(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: milestones[i].$3
-                          ? AppColors.tertiaryFixed
-                          : scheme.surfaceContainerHigh,
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: milestones[i].$3
+                            ? AppColors.tertiaryFixed
+                            : scheme.surfaceContainerHigh,
+                      ),
+                      child: Icon(
+                        milestones[i].$3
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: milestones[i].$3
+                            ? AppColors.onTertiaryFixed
+                            : scheme.outline,
+                      ),
                     ),
-                    child: Icon(
-                      milestones[i].$3
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      color: milestones[i].$3
-                          ? AppColors.onTertiaryFixed
-                          : scheme.outline,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          milestones[i].$1,
-                          style: text.labelLarge?.copyWith(
-                            color: scheme.onSurface,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            milestones[i].$1,
+                            style: text.labelLarge?.copyWith(
+                              color: scheme.onSurface,
+                            ),
                           ),
-                        ),
-                        Text(
-                          milestones[i].$2,
-                          style: text.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                          Text(
+                            milestones[i].$2,
+                            style: text.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  if (milestones[i].$3)
-                    const MintBadge(label: 'Done', icon: Icons.check),
-                ],
+                    if (milestones[i].$3)
+                      const MintBadge(label: 'Done', icon: Icons.check),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ],
@@ -428,10 +427,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               color: earned ? AppColors.amber : scheme.outline,
             ),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: text.labelMedium?.copyWith(
-                color: earned ? scheme.onSurface : scheme.outline,
+            Flexible(
+              child: Text(
+                label,
+                style: text.labelMedium?.copyWith(
+                  color: earned ? scheme.onSurface : scheme.outline,
+                ),
               ),
             ),
           ],

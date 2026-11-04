@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../local/app_database.dart';
+import '../sync/cloud_deadline.dart';
 import 'account_guard.dart';
 
 class UsernameTakenException implements Exception {
@@ -43,6 +44,16 @@ class ProfileRepository {
     )..where((row) => row.userId.equals(userId))).getSingleOrNull();
   }
 
+  static String _nicknameFrom(String name) {
+    final short = StringBuffer();
+    for (final rune in name.split(' ').first.runes) {
+      final character = String.fromCharCode(rune);
+      if (short.length + character.length > 40) break;
+      short.write(character);
+    }
+    return short.toString();
+  }
+
   /// Saves the profile locally and marks it for upload.
   Future<void> save({
     required String userId,
@@ -56,6 +67,7 @@ class ProfileRepository {
     String? school,
     Value<String?> photoPath = const Value.absent(),
   }) async {
+    guard.check(userId);
     final name = fullName.trim();
     final nick = nickname.trim();
     if (userId.isEmpty || name.isEmpty || name.length > 80) {
@@ -64,13 +76,26 @@ class ProfileRepository {
     if (nick.length > 40) {
       throw ArgumentError('Nickname must be 40 characters or fewer.');
     }
+    if (language.trim().isEmpty ||
+        language.length > 40 ||
+        practicePurpose.trim().isEmpty ||
+        practicePurpose.length > 120 ||
+        (school != null && school.trim().length > 80) ||
+        (username != null &&
+            username.isNotEmpty &&
+            !isValidUsername(username))) {
+      throw ArgumentError(
+        'Choose a valid language, practice goal, school and username.',
+      );
+    }
+    guard.check(userId);
     await database
         .into(database.userProfiles)
         .insertOnConflictUpdate(
           UserProfilesCompanion(
             userId: Value(userId),
             fullName: Value(name),
-            nickname: Value(nick.isEmpty ? name.split(' ').first : nick),
+            nickname: Value(nick.isEmpty ? _nicknameFrom(name) : nick),
             language: Value(language),
             practicePurpose: Value(practicePurpose),
             onboardingComplete: Value(onboardingComplete),
@@ -90,6 +115,7 @@ class ProfileRepository {
 
   /// Updates device-local fields that are never uploaded.
   Future<void> setPhotoPath(String userId, String? path) async {
+    guard.check(userId);
     await (database.update(database.userProfiles)
           ..where((row) => row.userId.equals(userId)))
         .write(UserProfilesCompanion(photoPath: Value(path)));
@@ -101,6 +127,7 @@ class ProfileRepository {
     final local = await get(userId);
 
     if (local != null && local.needsUpload) {
+      guard.check(userId);
       final data = <String, Object?>{
         'fullName': local.fullName,
         'nickname': local.nickname,
@@ -112,7 +139,8 @@ class ProfileRepository {
         'revision': local.revision,
         'updatedAt': FieldValue.serverTimestamp(),
       }..removeWhere((_, value) => value == null);
-      await document.set(data);
+      await withCloudDeadline(document.set(data));
+      guard.check(userId);
       // Only clear the flag if no newer local edit happened meanwhile.
       await (database.update(database.userProfiles)..where(
             (row) =>
@@ -122,76 +150,122 @@ class ProfileRepository {
       return;
     }
 
-    final snapshot = await document.get(
-      const GetOptions(source: Source.server),
+    final snapshot = await withCloudDeadline(
+      document.get(const GetOptions(source: Source.server)),
     );
     guard.check(userId);
-    final data = snapshot.data();
-    if (data == null) return;
-    final latest = await get(userId);
-    if (latest != null && latest.needsUpload) return;
-
+    final root = snapshot.data();
+    if (root == null) return;
+    final legacy = root['profile'];
+    final data = root['fullName'] is String
+        ? root
+        : (legacy is Map ? Map<String, dynamic>.from(legacy) : root);
     String text(String key, [String fallback = '']) =>
         data[key] is String ? data[key] as String : fallback;
-    final fullName = text('fullName');
+    final fullName = text('fullName').trim();
+    final nickname = text('nickname', fullName).trim();
     final revision = text('revision');
-    if (fullName.isEmpty || revision.isEmpty) return;
-    await database
-        .into(database.userProfiles)
-        .insertOnConflictUpdate(
-          UserProfilesCompanion(
-            userId: Value(userId),
-            fullName: Value(fullName),
-            nickname: Value(text('nickname', fullName)),
-            username: Value(text('username')),
-            language: Value(text('language', 'English (US)')),
-            practicePurpose: Value(
-              text('practicePurpose', 'Class Presentation'),
+    final language = text('language', 'English (US)');
+    final purpose = text('practicePurpose', 'Class Presentation');
+    final school = text('school');
+    final username = text('username');
+    if (fullName.isEmpty ||
+        fullName.length > 80 ||
+        nickname.length > 40 ||
+        revision.isEmpty ||
+        revision.length > 64 ||
+        language.isEmpty ||
+        language.length > 40 ||
+        purpose.isEmpty ||
+        purpose.length > 120 ||
+        school.length > 80 ||
+        username.length > 20) {
+      return;
+    }
+    // The read and replacement must share the SQLite transaction. Otherwise a
+    // local edit between a preliminary check and the write could be lost.
+    await database.transaction(() async {
+      guard.check(userId);
+      final latest = await get(userId);
+      if (latest != null && latest.needsUpload) return;
+      guard.check(userId);
+      await database
+          .into(database.userProfiles)
+          .insertOnConflictUpdate(
+            UserProfilesCompanion(
+              userId: Value(userId),
+              fullName: Value(fullName),
+              nickname: Value(nickname),
+              username: Value(username),
+              language: Value(language),
+              practicePurpose: Value(purpose),
+              school: Value(school),
+              onboardingComplete: Value(data['onboardingComplete'] == true),
+              revision: Value(revision),
+              // Migrate the older nested profile format on the next upload.
+              needsUpload: Value(!identical(data, root)),
             ),
-            school: Value(text('school')),
-            onboardingComplete: Value(data['onboardingComplete'] == true),
-            revision: Value(revision),
-            needsUpload: const Value(false),
-          ),
-        );
+          );
+    });
   }
 
-  /// Claims `usernames/{username}` for [userId]. The username document maps
-  /// a public username to the account email so it can be used to sign in.
+  /// A cloud reservation exposes UID only, never an account email.
   Future<void> reserveUsername({
     required String userId,
     required String username,
     required String email,
   }) async {
+    guard.check(userId);
     final name = normalizeUsername(username);
     if (!isValidUsername(name)) {
       throw ArgumentError(
         'Usernames use 3–20 lowercase letters, numbers, dots or underscores.',
       );
     }
-    final ref = firestore.collection('usernames').doc(name);
+    final document = firestore.collection('usernames').doc(name);
     await firestore.runTransaction((transaction) async {
-      final existing = await transaction.get(ref);
-      if (existing.exists) {
-        if (existing.data()?['uid'] == userId) return;
+      final DocumentSnapshot<Map<String, dynamic>> existing;
+      try {
+        existing = await transaction.get(document);
+      } on FirebaseException catch (error) {
+        if (error.code == 'permission-denied') {
+          throw const UsernameTakenException();
+        }
+        rethrow;
+      }
+      guard.check(userId);
+      if (existing.exists && existing.data()?['uid'] != userId) {
         throw const UsernameTakenException();
       }
-      transaction.set(ref, {'uid': userId, 'email': email});
+      // Also removes the email field from an owned legacy reservation.
+      transaction.set(document, {'uid': userId});
     });
   }
 
   Future<bool> isUsernameAvailable(String username) async {
     final name = normalizeUsername(username);
     if (!isValidUsername(name)) return false;
-    final snapshot = await firestore.collection('usernames').doc(name).get();
-    return !snapshot.exists;
+    try {
+      final snapshot = await firestore.collection('usernames').doc(name).get();
+      return !snapshot.exists;
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') return false;
+      rethrow;
+    }
   }
 
+  /// Convenience for a previously used account on this device only. On a new
+  /// device, email is required; no public username-to-email directory is queried.
   Future<String?> emailForUsername(String username) async {
     final name = normalizeUsername(username);
     if (!isValidUsername(name)) return null;
-    final snapshot = await firestore.collection('usernames').doc(name).get();
-    final email = snapshot.data()?['email'];
-    return email is String ? email : null;
+    final rows = await (database.select(
+      database.userProfiles,
+    )..where((row) => row.username.equals(name))).get();
+    final emails = rows
+        .map((row) => row.email)
+        .where((email) => email.isNotEmpty)
+        .toSet();
+    return emails.length == 1 ? emails.single : null;
   }
 }

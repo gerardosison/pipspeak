@@ -7,6 +7,7 @@ import '../../core/models/speech_metrics.dart';
 import '../../features/progress/services/scoring_service.dart';
 import '../codecs/analysis_codec.dart';
 import '../local/app_database.dart';
+import '../sync/cloud_deadline.dart';
 import 'account_guard.dart';
 import 'profile_repository.dart';
 
@@ -28,6 +29,13 @@ class ProgressRepository {
   final ScoringService scoring;
 
   final Map<String, Future<void>> _activeSyncs = {};
+
+  static double? _metric(double? value, double maximum) =>
+      value != null && value.isFinite && value >= 0 && value <= maximum
+      ? value
+      : null;
+  static int? _count(int? value) =>
+      value != null && value >= 0 && value <= 100000 ? value : null;
 
   Stream<List<PracticeRecord>> watchRecords(String userId) =>
       database.watchRecords(userId);
@@ -64,18 +72,26 @@ class ProgressRepository {
     String? audioPath,
     bool isTest = false,
   }) async {
-    if (userId.isEmpty || sessionId.isEmpty || practicePurpose.isEmpty) {
+    guard.check(userId);
+    if (userId.isEmpty ||
+        sessionId.isEmpty ||
+        sessionId.length > 64 ||
+        practicePurpose.trim().isEmpty ||
+        practicePurpose.length > 120 ||
+        language.isEmpty ||
+        language.length > 40) {
       throw ArgumentError('Invalid practice record.');
     }
     if (durationSeconds < 0 || durationSeconds > 6 * 3600) {
       throw ArgumentError.value(durationSeconds, 'durationSeconds');
     }
     final score = report.overallScore;
-    if (score.isNaN || score < 0 || score > 100) {
+    if (!score.isFinite || score < 0 || score > 100) {
       throw ArgumentError.value(score, 'overallScore');
     }
 
     return database.transaction(() async {
+      guard.check(userId);
       final existing = await record(userId, sessionId);
       if (existing != null) return existing;
 
@@ -114,6 +130,7 @@ class ProgressRepository {
         starsEarned: award.stars,
       );
 
+      guard.check(userId);
       await database
           .into(database.practiceRecords)
           .insert(
@@ -130,12 +147,12 @@ class ProgressRepository {
               language: Value(language),
               topic: Value(topic),
               overallScore: Value(score),
-              wordsPerMinute: Value(speech?.wordsPerMinute),
-              fillerCount: Value(speech?.totalFillers),
-              pauseCount: Value(speech?.pauseCount),
-              postureScore: Value(pose?.postureScore),
-              bodySwayCm: Value(pose?.bodySwayCm),
-              gestureScore: Value(pose?.handGestureActivityScore),
+              wordsPerMinute: Value(_metric(speech?.wordsPerMinute, 1000)),
+              fillerCount: Value(_count(speech?.totalFillers)),
+              pauseCount: Value(_count(speech?.pauseCount)),
+              postureScore: Value(_metric(pose?.postureScore, 100)),
+              bodySwayCm: Value(_metric(pose?.bodySwayCm, 1000)),
+              gestureScore: Value(_metric(pose?.handGestureActivityScore, 100)),
               hasLocalDetails: const Value(true),
             ),
           );
@@ -173,13 +190,13 @@ class ProgressRepository {
       'baselineSessionId': record.baselineSessionId,
       'scoringVersion': record.scoringVersion,
       'isTest': record.isTest,
-      'overallScore': record.overallScore,
-      'wordsPerMinute': record.wordsPerMinute,
-      'fillerCount': record.fillerCount,
-      'pauseCount': record.pauseCount,
-      'postureScore': record.postureScore,
-      'bodySwayCm': record.bodySwayCm,
-      'gestureScore': record.gestureScore,
+      'overallScore': _metric(record.overallScore, 100),
+      'wordsPerMinute': _metric(record.wordsPerMinute, 1000),
+      'fillerCount': _count(record.fillerCount),
+      'pauseCount': _count(record.pauseCount),
+      'postureScore': _metric(record.postureScore, 100),
+      'bodySwayCm': _metric(record.bodySwayCm, 1000),
+      'gestureScore': _metric(record.gestureScore, 100),
     };
     data.removeWhere((_, value) => value == null);
     return data;
@@ -197,14 +214,20 @@ class ProgressRepository {
     for (final record in await database.pendingRecords(userId)) {
       guard.check(userId);
       // Stable document IDs make retries idempotent.
-      await collection.doc(record.id).set(summaryFor(record));
+      await withCloudDeadline(
+        collection.doc(record.id).set(summaryFor(record)),
+      );
+      guard.check(userId);
       await database.markUploaded(userId, record.id);
     }
 
     guard.check(userId);
-    final cloud = await collection.get(const GetOptions(source: Source.server));
+    final cloud = await withCloudDeadline(
+      collection.get(const GetOptions(source: Source.server)),
+    );
     guard.check(userId);
     for (final document in cloud.docs) {
+      guard.check(userId);
       final companion = parseCloudSummary(userId, document.id, document.data());
       if (companion != null) await database.insertDownloaded(companion);
     }
@@ -225,13 +248,44 @@ class ProgressRepository {
     if (data['userId'] != userId ||
         completedAt is! Timestamp ||
         purpose is! String ||
+        purpose.trim().isEmpty ||
+        purpose.length > 120 ||
+        id.isEmpty ||
+        id.length > 64 ||
         duration is! int ||
         duration < 0 ||
+        duration > 21600 ||
         stars is! int ||
         stars < 0 ||
         stars > 3 ||
         version is! String ||
+        version.isEmpty ||
+        version.length > 16 ||
         (baseline != null && baseline is! String)) {
+      return null;
+    }
+    bool validNumber(String key, double max) {
+      final value = data[key];
+      return value == null ||
+          (value is num && value.isFinite && value >= 0 && value <= max);
+    }
+
+    bool validCount(String key) {
+      final value = data[key];
+      return value == null || (value is int && value >= 0 && value <= 100000);
+    }
+
+    if (!validNumber('overallScore', 100) ||
+        !validNumber('wordsPerMinute', 1000) ||
+        !validNumber('postureScore', 100) ||
+        !validNumber('bodySwayCm', 1000) ||
+        !validNumber('gestureScore', 100) ||
+        !validCount('fillerCount') ||
+        !validCount('pauseCount') ||
+        (data['language'] != null &&
+            (data['language'] is! String ||
+                (data['language'] as String).length > 40)) ||
+        (data['isTest'] != null && data['isTest'] is! bool)) {
       return null;
     }
     double? number(String key) {

@@ -105,11 +105,24 @@ test('non-owner and anonymous cannot access sessions', async () => {
 });
 
 test('usernames: claim own, no hijack, public get', async () => {
-  await assertSucceeds(setDoc(doc(alice(), 'usernames/alice'), { uid: 'alice', email: 'a@x.com' }));
-  await assertFails(setDoc(doc(bob(), 'usernames/alice'), { uid: 'bob', email: 'b@x.com' }));
-  await assertFails(setDoc(doc(bob(), 'usernames/bobby'), { uid: 'alice', email: 'a@x.com' }));
-  await assertFails(setDoc(doc(bob(), 'usernames/Bad Name'), { uid: 'bob', email: 'b@x.com' }));
+  await assertSucceeds(setDoc(doc(alice(), 'usernames/alice'), { uid: 'alice' }));
+  await assertFails(setDoc(doc(bob(), 'usernames/alice'), { uid: 'bob' }));
+  await assertFails(setDoc(doc(bob(), 'usernames/bobby'), { uid: 'alice' }));
+  await assertFails(setDoc(doc(bob(), 'usernames/Bad Name'), { uid: 'bob' }));
   await assertSucceeds(getDoc(doc(anon(), 'usernames/alice')));
   await assertFails(deleteDoc(doc(bob(), 'usernames/alice')));
   await assertSucceeds(deleteDoc(doc(alice(), 'usernames/alice')));
+});
+
+
+test('reservations reject email fields and protect legacy email records', async () => {
+  await assertFails(setDoc(doc(alice(), 'usernames/leak'), { uid: 'alice', email: 'a@x.com' }));
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'usernames/legacy'), { uid: 'alice', email: 'a@x.com' });
+  });
+  await assertFails(getDoc(doc(anon(), 'usernames/legacy')));
+  await assertFails(getDoc(doc(bob(), 'usernames/legacy')));
+  await assertSucceeds(getDoc(doc(alice(), 'usernames/legacy')));
+  await assertSucceeds(setDoc(doc(alice(), 'usernames/legacy'), { uid: 'alice' }));
+  await assertSucceeds(getDoc(doc(anon(), 'usernames/legacy')));
 });

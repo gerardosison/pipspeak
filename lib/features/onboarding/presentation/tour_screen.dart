@@ -120,8 +120,7 @@ class _TourScreenState extends State<TourScreen> {
       title: 'Home',
       icon: Icons.home_rounded,
       tagline: 'Your daily speaking launchpad',
-      function:
-          'Start each day with quick warm-ups and track your ongoing practice streak.',
+      function: 'Start each day with quick warm-ups and track your ongoing practice streak.',
       features: [
         'Daily 60-second impromptu speech warm-ups',
         'Habit streak counter & weekly session totals',
@@ -134,10 +133,10 @@ class _TourScreenState extends State<TourScreen> {
       icon: Icons.mic_rounded,
       tagline: 'Interactive speech training studio',
       function:
-          'Record your talks, receive live coaching hints, and conquer stage fright.',
+          'Record a practice speech and review feedback after your session.',
       features: [
-        'Speech audio & video capture with live visualizer',
-        'Instant detection of filler words and pacing errors',
+        'Local speech recording and camera preview on Android',
+        'On-device transcription, filler counts and speaking pace',
         'Dynamic speaking prompts across multiple formats',
       ],
       previewType: _PreviewType.practice,
@@ -146,8 +145,7 @@ class _TourScreenState extends State<TourScreen> {
       title: 'Progress',
       icon: Icons.insights_rounded,
       tagline: 'Analytics & growth insights',
-      function:
-          'Visualize your delivery metrics, confidence trends, and score history over time.',
+      function: 'Visualize your delivery metrics, confidence trends, and score history over time.',
       features: [
         'Fluency, clarity, and pacing performance scores',
         'Weekly practice frequency charts & consistency logs',
@@ -159,10 +157,9 @@ class _TourScreenState extends State<TourScreen> {
       title: 'Profile',
       icon: Icons.person_rounded,
       tagline: 'Your speaker identity & achievements',
-      function:
-          'Celebrate your growth, view unlocked speech badges, and manage your level.',
+      function: 'Celebrate your growth, view unlocked speech badges, and manage your level.',
       features: [
-        'Speaker level progression (Level 1 Novice to Level 5 Master)',
+        'Levels earned through improvements in your speaking',
         'Milestone badges (e.g. 7-day Streak, Clarity Champion)',
         'Custom speaking goals and personalized preferences',
       ],
@@ -173,10 +170,10 @@ class _TourScreenState extends State<TourScreen> {
       icon: Icons.tune_rounded,
       tagline: 'Customization, privacy & app information',
       function:
-          'Fine-tune microphone inputs, toggle dark mode, and learn about the PipSpeak mission in the About Section.',
+          'Choose your appearance and learn how PipSpeak stores your data.',
       features: [
         'Dark mode and visual appearance controls',
-        'Microphone sensitivity calibration and privacy controls',
+        'Information about local storage and cloud synchronization',
         'About Section detailing PipSpeak story, version & mission',
       ],
       previewType: _PreviewType.settings,
@@ -204,7 +201,6 @@ class _TourScreenState extends State<TourScreen> {
   Widget build(BuildContext context) {
     final currentPage = _pages[_page];
     final pal = _Pal.of(context);
-
     return Scaffold(
       appBar: pipAppBar(
         context,
@@ -213,7 +209,6 @@ class _TourScreenState extends State<TourScreen> {
         onBack: _previous,
         actions: [
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: pal.accent),
             onPressed: () => Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const PersonalizationScreen()),
@@ -223,112 +218,81 @@ class _TourScreenState extends State<TourScreen> {
         ],
       ),
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Padding(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-              child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Progress Bar
-              Row(
-                children: List.generate(
-                  _pages.length,
-                  (index) => Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      height: 5,
-                      margin: EdgeInsets.only(
-                        right: index == _pages.length - 1 ? 0 : 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: index <= _page ? pal.accent : pal.accentFill,
-                        borderRadius: BorderRadius.circular(6),
+              children: [
+                Row(
+                  children: List.generate(
+                    _pages.length,
+                    (index) => Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        height: 5,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: index <= _page ? pal.accent : pal.border,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              // Page Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: pal.accentFill,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: pal.border, width: 1.5),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Icon(currentPage.icon, color: pal.accent, size: 32),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            currentPage.title,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: pal.text,
+                                ),
+                          ),
+                          Text(
+                            currentPage.tagline,
+                            style: TextStyle(fontSize: 13, color: pal.textSoft),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Icon(
-                      currentPage.icon,
-                      color: pal.onAccentFill,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currentPage.title,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: pal.text,
-                              ),
-                        ),
-                        Text(
-                          currentPage.tagline,
-                          style: TextStyle(fontSize: 13, color: pal.textSoft),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Screen Preview + Tooltip Container
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _PagePreviewMockup(previewType: currentPage.previewType),
-                      const SizedBox(height: 32),
-                      _TooltipCallout(data: currentPage),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 14),
-
-              // Bottom Navigation Button
-              SizedBox(
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _next,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: pal.accent,
-                    foregroundColor: pal.onAccent,
-                  ),
-                  child: Text(
-                    _page == _pages.length - 1
-                        ? 'Personalize my journey'
-                        : 'Next: ${_pages[_page + 1].title}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                const SizedBox(height: 24),
+                _PagePreviewMockup(previewType: currentPage.previewType),
+                const SizedBox(height: 24),
+                _TooltipCallout(data: currentPage),
+                const SizedBox(height: 24),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 54),
+                  child: ElevatedButton(
+                    onPressed: _next,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: pal.accent,
+                      foregroundColor: pal.onAccent,
+                    ),
+                    child: Text(
+                      _page == _pages.length - 1
+                          ? 'Personalize my journey'
+                          : 'Next: ${_pages[_page + 1].title}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-              ),
+              ],
             ),
           ),
         ),
@@ -377,10 +341,8 @@ class _TooltipCallout extends StatelessWidget {
             Expanded(
               child: Text(
                 '${data.title} function & features',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 16,
-                  color: pal.text,
-                ),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontSize: 16, color: pal.text),
               ),
             ),
           ],
@@ -424,7 +386,11 @@ class _TooltipCallout extends StatelessWidget {
                 Expanded(
                   child: Text(
                     feat,
-                    style: TextStyle(fontSize: 13, height: 1.35, color: pal.text),
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: pal.text,
+                    ),
                   ),
                 ),
               ],
@@ -439,31 +405,43 @@ class _TooltipCallout extends StatelessWidget {
 /// Visual UI preview card for each page
 class _PagePreviewMockup extends StatelessWidget {
   const _PagePreviewMockup({required this.previewType});
-
   final _PreviewType previewType;
 
   @override
   Widget build(BuildContext context) {
     final pal = _Pal.of(context);
-
-    return Container(
-      height: 230,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: pal.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: pal.border, width: 2),
-        boxShadow: [
-          BoxShadow(color: pal.shadow, offset: const Offset(4, 5), blurRadius: 0),
-        ],
+    // This thumbnail is an illustration, not account data. Primary tour text
+    // remains outside it and follows the user's accessibility text size.
+    return ExcludeSemantics(
+      child: AspectRatio(
+        aspectRatio: 420 / 320,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: SizedBox(
+            width: 420,
+            height: 320,
+            child: MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.noScaling),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: pal.card,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: pal.border, width: 2),
+                ),
+                child: switch (previewType) {
+                  _PreviewType.home => const _HomePreview(),
+                  _PreviewType.practice => const _PracticePreview(),
+                  _PreviewType.progress => const _ProgressPreview(),
+                  _PreviewType.profile => const _ProfilePreview(),
+                  _PreviewType.settings => const _SettingsPreview(),
+                },
+              ),
+            ),
+          ),
+        ),
       ),
-      child: switch (previewType) {
-        _PreviewType.home => const _HomePreview(),
-        _PreviewType.practice => const _PracticePreview(),
-        _PreviewType.progress => const _ProgressPreview(),
-        _PreviewType.profile => const _ProfilePreview(),
-        _PreviewType.settings => const _SettingsPreview(),
-      },
     );
   }
 }
@@ -556,9 +534,13 @@ class _HomePreview extends StatelessWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _StatTile(value: '12', label: 'Sessions', fill: pal.tile1)),
+            Expanded(
+              child: _StatTile(value: '12', label: 'Sessions', fill: pal.tile1),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _StatTile(value: '88%', label: 'Fluency', fill: pal.tile2)),
+            Expanded(
+              child: _StatTile(value: '88%', label: 'Fluency', fill: pal.tile2),
+            ),
           ],
         ),
       ],
@@ -567,7 +549,11 @@ class _HomePreview extends StatelessWidget {
 }
 
 class _StatTile extends StatelessWidget {
-  const _StatTile({required this.value, required this.label, required this.fill});
+  const _StatTile({
+    required this.value,
+    required this.label,
+    required this.fill,
+  });
 
   final String value;
   final String label;
@@ -698,11 +684,19 @@ class _ProgressPreview extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _ScoreTile(label: 'Confidence', value: '92/100', fill: pal.tile1),
+              child: _ScoreTile(
+                label: 'Confidence',
+                value: '92/100',
+                fill: pal.tile1,
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _ScoreTile(label: 'Clarity', value: '89%', fill: pal.tile2),
+              child: _ScoreTile(
+                label: 'Clarity',
+                value: '89%',
+                fill: pal.tile2,
+              ),
             ),
           ],
         ),
@@ -753,7 +747,11 @@ class _ProgressPreview extends StatelessWidget {
 }
 
 class _ScoreTile extends StatelessWidget {
-  const _ScoreTile({required this.label, required this.value, required this.fill});
+  const _ScoreTile({
+    required this.label,
+    required this.value,
+    required this.fill,
+  });
 
   final String label;
   final String value;
@@ -817,7 +815,7 @@ class _ProfilePreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Alex Speaker',
+                  'Your profile',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -825,7 +823,7 @@ class _ProfilePreview extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Level 4: Eloquent Speaker',
+                  'Your saved progress',
                   style: TextStyle(fontSize: 11, color: pal.accent),
                 ),
               ],
@@ -856,12 +854,18 @@ class _ProfilePreview extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Text('🏅 7-Day Streak',
-                      style: TextStyle(fontSize: 11, color: pal.text)),
-                  Text('🎙️ 10+ Speeches',
-                      style: TextStyle(fontSize: 11, color: pal.text)),
-                  Text('⭐ 90% Clarity',
-                      style: TextStyle(fontSize: 11, color: pal.text)),
+                  Text(
+                    '🏅 7-Day Streak',
+                    style: TextStyle(fontSize: 11, color: pal.text),
+                  ),
+                  Text(
+                    '🎙️ 10+ Speeches',
+                    style: TextStyle(fontSize: 11, color: pal.text),
+                  ),
+                  Text(
+                    '⭐ 90% Clarity',
+                    style: TextStyle(fontSize: 11, color: pal.text),
+                  ),
                 ],
               ),
             ],
@@ -905,8 +909,10 @@ class _SettingsPreview extends StatelessWidget {
                 children: [
                   Icon(Icons.dark_mode_outlined, size: 16, color: pal.accent),
                   const SizedBox(width: 8),
-                  Text('Dark mode',
-                      style: TextStyle(fontSize: 11, color: pal.text)),
+                  Text(
+                    'Dark mode',
+                    style: TextStyle(fontSize: 11, color: pal.text),
+                  ),
                 ],
               ),
               Icon(Icons.toggle_on_rounded, color: pal.accent, size: 26),

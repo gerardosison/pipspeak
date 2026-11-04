@@ -52,7 +52,10 @@ final progressRepositoryProvider = Provider<ProgressRepository>(
 );
 
 final documentRepositoryProvider = Provider<DocumentRepository>(
-  (ref) => DocumentRepository(ref.watch(appDatabaseProvider)),
+  (ref) => DocumentRepository(
+    ref.watch(appDatabaseProvider),
+    guard: ref.watch(accountGuardProvider),
+  ),
 );
 
 final authServiceProvider = Provider<AuthService>(
@@ -79,16 +82,29 @@ final currentUidProvider = Provider<String?>(
   (ref) => ref.watch(authUserProvider).valueOrNull?.uid,
 );
 
-final localProfileProvider = StreamProvider<LocalProfile?>((ref) {
+// Key each stream by UID. A single rebuilding StreamProvider can retain its
+// previous AsyncData while refreshing, briefly exposing the old account.
+final _profilesForUidProvider = StreamProvider.family<LocalProfile?, String>(
+  (ref, uid) => ref.watch(profileRepositoryProvider).watch(uid),
+);
+final localProfileProvider = Provider<AsyncValue<LocalProfile?>>((ref) {
   final uid = ref.watch(currentUidProvider);
-  if (uid == null) return Stream.value(null);
-  return ref.watch(profileRepositoryProvider).watch(uid);
+  return uid == null
+      ? const AsyncData(null)
+      : ref.watch(_profilesForUidProvider(uid));
 });
 
-final practiceRecordsProvider = StreamProvider<List<PracticeRecord>>((ref) {
+final _recordsForUidProvider =
+    StreamProvider.family<List<PracticeRecord>, String>(
+      (ref, uid) => ref.watch(progressRepositoryProvider).watchRecords(uid),
+    );
+final practiceRecordsProvider = Provider<AsyncValue<List<PracticeRecord>>>((
+  ref,
+) {
   final uid = ref.watch(currentUidProvider);
-  if (uid == null) return Stream.value(const []);
-  return ref.watch(progressRepositoryProvider).watchRecords(uid);
+  return uid == null
+      ? const AsyncData([])
+      : ref.watch(_recordsForUidProvider(uid));
 });
 
 /// Saved sessions that count toward progress (developer/test excluded).
@@ -100,10 +116,14 @@ final genuineRecordsProvider = Provider<List<PracticeRecord>>((ref) {
   ];
 });
 
-final pendingSyncCountProvider = StreamProvider<int>((ref) {
+final _pendingForUidProvider = StreamProvider.family<int, String>(
+  (ref, uid) => ref.watch(progressRepositoryProvider).watchPendingCount(uid),
+);
+final pendingSyncCountProvider = Provider<AsyncValue<int>>((ref) {
   final uid = ref.watch(currentUidProvider);
-  if (uid == null) return Stream.value(0);
-  return ref.watch(progressRepositoryProvider).watchPendingCount(uid);
+  return uid == null
+      ? const AsyncData(0)
+      : ref.watch(_pendingForUidProvider(uid));
 });
 
 final levelStatusProvider = Provider<LevelStatus>((ref) {
@@ -132,7 +152,8 @@ int practiceStreak(List<PracticeRecord> records, DateTime now) {
 final currentUserProvider = Provider<UserProfile?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (uid == null) return null;
-  final profile = ref.watch(localProfileProvider).valueOrNull;
+  final candidate = ref.watch(localProfileProvider).valueOrNull;
+  final profile = candidate?.userId == uid ? candidate : null;
   final firebaseUser = ref.watch(authUserProvider).valueOrNull;
   final records = ref.watch(genuineRecordsProvider);
   final level = ref.watch(levelStatusProvider);
@@ -183,15 +204,26 @@ final sessionHistoryProvider = Provider<List<PracticeSession>>((ref) {
   ];
 });
 
-/// Saved local feedback for a session (null if analyzed on another device).
-final sessionReportProvider = FutureProvider.family<FeedbackReport?, String>((
-  ref,
-  sessionId,
-) async {
-  final uid = ref.watch(currentUidProvider);
-  if (uid == null) return null;
-  final detail = await ref
-      .watch(progressRepositoryProvider)
-      .detail(uid, sessionId);
-  return detail == null ? null : AnalysisCodec.decodeReport(detail.reportJson);
-});
+/// Key detail requests by account as well as session ID. Refreshing the same
+/// session in a different account must never retain the previous AsyncData.
+final _sessionReportForOwnerProvider =
+    FutureProvider.family<FeedbackReport?, (String, String)>((
+      ref,
+      owner,
+    ) async {
+      final detail = await ref
+          .watch(progressRepositoryProvider)
+          .detail(owner.$1, owner.$2);
+      return detail == null
+          ? null
+          : AnalysisCodec.decodeReport(detail.reportJson);
+    });
+
+/// Saved local feedback (null if analyzed on another device).
+final sessionReportProvider =
+    Provider.family<AsyncValue<FeedbackReport?>, String>((ref, sessionId) {
+      final uid = ref.watch(currentUidProvider);
+      return uid == null
+          ? const AsyncData(null)
+          : ref.watch(_sessionReportForOwnerProvider((uid, sessionId)));
+    });

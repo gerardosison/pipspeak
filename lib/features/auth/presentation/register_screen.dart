@@ -7,7 +7,10 @@ import '../services/auth_service.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/widgets/pip_misc.dart';
-import '../../onboarding/presentation/welcome_screen.dart';
+
+import 'package:go_router/go_router.dart';
+
+import '../../../app/app_router.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -163,13 +166,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       );
       return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your account could not be saved. Try signing in with your email before registering again.',
+          ),
+        ),
+      );
+      return;
     }
     if (!mounted) return;
     setState(() => _busy = false);
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => WelcomeScreen(nickname: nickname)),
-    );
+    context.go(AppRoutes.splash);
   }
 
   Future<bool> _confirmExit() async {
@@ -242,8 +253,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(ctx).pop(true),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.coral,
-                          side: const BorderSide(color: AppColors.coral),
+                          foregroundColor: Theme.of(ctx).colorScheme.error,
+                          side: BorderSide(
+                            color: Theme.of(ctx).colorScheme.error,
+                          ),
                         ),
                         child: const Text(
                           'Cancel registration',
@@ -574,16 +587,20 @@ class _UsernameIndicator extends StatelessWidget {
     }
 
     if (isTaken) {
-      return const Row(
+      return Row(
         children: [
-          Icon(Icons.cancel_rounded, size: 16, color: AppColors.coral),
-          SizedBox(width: 8),
+          Icon(
+            Icons.cancel_rounded,
+            size: 16,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Username is already taken - choose another',
               style: TextStyle(
                 fontSize: 12,
-                color: AppColors.coral,
+                color: Theme.of(context).colorScheme.error,
                 fontWeight: FontWeight.w600,
               ),
             ),

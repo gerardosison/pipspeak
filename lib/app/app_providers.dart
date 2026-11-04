@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/permissions/permission_service.dart';
 import '../core/services/document_service.dart';
 import '../core/services/feedback_service.dart';
-import '../core/services/mock/mock_permission_service.dart';
+import '../core/permissions/platform_permission_service.dart';
 import '../core/services/pose_analysis_service.dart';
 import '../core/services/speech_recognition_service.dart';
 import '../features/ai/feedback/local_llm_service.dart';
@@ -31,10 +31,9 @@ final permissionStateProvider = StateProvider<PermissionState>(
 );
 
 // --------------------------------------------------------------- Services
-// Swap these mock implementations for real backends; the UI only knows
-// the interfaces.
+// Production services use real platform/model implementations.
 final permissionServiceProvider = Provider<PermissionService>(
-  (_) => MockPermissionService(),
+  (_) => PlatformPermissionService(),
 );
 final speechRecognitionProvider = Provider<SpeechRecognitionService>(
   (_) => WhisperSpeechService(),

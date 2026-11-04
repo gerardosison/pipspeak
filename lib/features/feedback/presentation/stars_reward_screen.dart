@@ -47,7 +47,8 @@ class _StarsRewardScreenState extends ConsumerState<StarsRewardScreen>
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final report = ref.watch(lastReportProvider);
-    final user = ref.watch(currentUserProvider) ?? _fallbackUser;
+    final user =
+        ref.watch(currentUserProvider) ?? const UserProfile.placeholder();
     final stars = report?.starsEarned ?? 0;
     final needed = LevelProgress.starsNeeded(user.level);
 
@@ -270,17 +271,6 @@ class _StarsRewardScreenState extends ConsumerState<StarsRewardScreen>
       ),
     );
   }
-
-  UserProfile get _fallbackUser => const UserProfile(
-    name: 'Maya Chen',
-    nickname: 'OratorMaya',
-    email: 'maya.chen@school.edu',
-    level: 2,
-    stars: 7,
-    streakDays: 4,
-    totalSessions: 12,
-    school: 'Riverside High',
-  );
 }
 
 /// Stitch `post_practice_keep_going_screen` — supportive state shown when
