@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = {
-    "qwen": ("Qwen/Qwen3-0.6B-GGUF", "qwen3-0.6b-q4_k_m.gguf", "llm"),
+    "qwen": ("Qwen/Qwen3-0.6B-GGUF", "qwen3-0.6b-q8_0.gguf", "llm"),
     "whisper": ("ggerganov/whisper.cpp", "ggml-base-q5_1.bin", "whisper"),
 }
 

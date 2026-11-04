@@ -49,9 +49,9 @@ class ModelLoader {
   static const qwenLlmModel = ModelAssetInfo(
     id: 'llm_qwen3_06b',
     name: 'Qwen3 0.6B GGUF',
-    fileName: 'qwen3-0.6b-q4_k_m.gguf',
-    format: 'GGUF (Q4_K_M)',
-    sizeMb: '380 MB',
+    fileName: 'qwen3-0.6b-q8_0.gguf',
+    format: 'GGUF (Q8_0)',
+    sizeMb: 'See integrity manifest',
     isBundled: true, // Packaged by the verified model preparation step.
     license: 'Apache 2.0',
   );

@@ -102,7 +102,7 @@ val verifyLocalAiReleaseAssets = tasks.register("verifyLocalAiReleaseAssets") {
     doLast {
         val appRoot = rootProject.projectDir.parentFile
         val models = listOf(
-            "llm" to "qwen3-0.6b-q4_k_m.gguf",
+            "llm" to "qwen3-0.6b-q8_0.gguf",
             "whisper" to "ggml-base-q5_1.bin",
         )
         for ((folder, filename) in models) {

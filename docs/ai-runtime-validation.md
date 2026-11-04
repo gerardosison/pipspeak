@@ -36,7 +36,10 @@ rejects missing, corrupt, stale or placeholder artifacts with setup instructions
 It never downloads replacement models silently or accepts a file merely because
 it is larger than 1 MB. Keep model weights out of Git.
 
-The canonical Qwen path is `assets/models/llm/qwen3-0.6b-q4_k_m.gguf`.
+The canonical Qwen path is `assets/models/llm/qwen3-0.6b-q8_0.gguf`, using the
+Q8_0 artifact published by the official Qwen repository. The former Q4_K_M
+filename was unavailable there. Q8_0 requires more storage and model memory than
+Q4_K_M; this change is not a performance claim. Benchmark the target phone.
 Android copies this asset into private storage with bounded buffers and validates
 its SHA-256 before reuse. An ARM64 Android process is required by the Qwen plugin.
 

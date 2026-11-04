@@ -42,7 +42,7 @@ class ContextLimitException implements Exception {
 class LocalLlmService {
   static final LocalLlmService _instance = LocalLlmService._internal();
   factory LocalLlmService({
-    String modelName = 'Qwen3-0.6B-GGUF (Q4_K_M)',
+    String modelName = 'Qwen3-0.6B-GGUF (Q8_0)',
     bool isEnabled = true,
   }) => _instance;
   LocalLlmService._internal()

@@ -15,7 +15,7 @@ import java.nio.ByteOrder
  */
 class LlamaEngine(private val context: Context) {
     private var isLoaded = false
-    private val modelAsset = "flutter_assets/assets/models/llm/qwen3-0.6b-q4_k_m.gguf"
+    private val modelAsset = "flutter_assets/assets/models/llm/qwen3-0.6b-q8_0.gguf"
     private val manifestAsset = "flutter_assets/assets/models/llm/model-integrity.json"
     private var verifiedPath: String? = null
     private var verifiedModified = -1L
@@ -45,7 +45,7 @@ class LlamaEngine(private val context: Context) {
             "Local Qwen requires an ARM64 Android runtime. Use a supported physical " +
                 "64-bit ARM phone and an android-arm64 build."
         }
-        val modelFile = File(context.filesDir, "llm/qwen3-0.6b-q4_k_m.gguf")
+        val modelFile = File(context.filesDir, "llm/qwen3-0.6b-q8_0.gguf")
         val integrity = ModelIntegrity.read(context, manifestAsset, modelFile.name)
         if (verifiedPath == modelFile.absolutePath &&
             verifiedModified == modelFile.lastModified() &&

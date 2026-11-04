@@ -101,7 +101,7 @@ Models are not committed (size). Prepare verified weights and manifests before b
 | Model | Path | License |
 | --- | --- | --- |
 | Whisper `ggml-base-q5_1.bin` | `assets/models/whisper/` (not committed) | MIT |
-| Qwen3 `qwen3-0.6b-q4_k_m.gguf` | `assets/models/llm/` (not committed) | Apache-2.0 |
+| Qwen3 `qwen3-0.6b-q8_0.gguf` | `assets/models/llm/` (not committed) | Apache-2.0 |
 | Google ML Kit Pose Detection | Model supplied by Android SDK dependency; no `.task` required | Google ML Kit terms |
 
 During development, optional speech coaching can fall back to rule-based

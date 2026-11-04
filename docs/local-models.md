@@ -5,8 +5,15 @@ Git checkout alone cannot run the local speech/chat/document models.
 
 | Model | File path | Download |
 | --- | --- | --- |
-| Qwen3 0.6B Q4_K_M | `assets/models/llm/qwen3-0.6b-q4_k_m.gguf` | [Hugging Face GGUF repository](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF) |
+| Qwen3 0.6B Q8_0 | `assets/models/llm/qwen3-0.6b-q8_0.gguf` | [Hugging Face GGUF repository](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF) |
 | Whisper Base Q5_1 | `assets/models/whisper/ggml-base-q5_1.bin` | [Direct download](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin?download=true) |
+
+The official Qwen repository currently publishes `Qwen3-0.6B-Q8_0.gguf`.
+The downloader preserves that upstream spelling in its download URL and installs
+it under the lowercase local asset name above. The earlier Q4_K_M expectation
+was not present in the official repository. Q8_0 is a different quantization,
+with larger storage and model-memory requirements than Q4_K_M; actual speed and
+peak memory must be measured on the target phone. Do not rename a Q4 file as Q8.
 
 The Flutter asset declarations in `pubspec.yaml` package these files as
 `assets/models/llm/...` and `assets/models/whisper/...`. Keep the downloaded

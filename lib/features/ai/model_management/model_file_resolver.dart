@@ -49,7 +49,7 @@ Future<void> validateGgufHeader(File file) async {
         metadata > 100000) {
       throw const FormatException(
         'Qwen model has an invalid or unsupported GGUF header. '
-        'Prepare the official Qwen3 0.6B Q4_K_M artifact again.',
+        'Prepare the official Qwen3 0.6B Q8_0 artifact again.',
       );
     }
   } finally {

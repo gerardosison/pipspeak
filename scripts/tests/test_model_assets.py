@@ -19,7 +19,7 @@ class ModelPreparationTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "qwen3-0.6b-q4_k_m.gguf"
+        self.path = Path(self.directory.name) / "qwen3-0.6b-q8_0.gguf"
 
     def write_fixture(self):
         self.path.write_bytes(struct.pack("<4sIQQ", b"GGUF", 3, 100, 20) + bytes(1024 * 1024))
@@ -75,7 +75,7 @@ class ModelPreparationTests(unittest.TestCase):
         }
 
     def test_nested_approved_artifact_preserves_upstream_path_and_revision(self):
-        path = "Q4_K_M/Qwen3-0.6B-Q4_K_M.gguf"
+        path = "Q8_0/Qwen3-0.6B-Q8_0.gguf"
         metadata = self.metadata(path)
         with patch.object(assets, "request", return_value=io.BytesIO(json.dumps(metadata).encode())):
             url, digest, size, revision = assets.official_artifact("qwen")
@@ -84,28 +84,76 @@ class ModelPreparationTests(unittest.TestCase):
         self.assertEqual(size, 2 * 1024 * 1024)
         self.assertEqual(revision, "a" * 40)
 
+    def test_official_q8_listing_downloads_verifies_and_writes_canonical_manifest(self):
+        # Regression for the publisher file list supplied by the user. The bytes,
+        # revision and LFS metadata below are test fixtures, not real model data.
+        fixture_digest = self.write_fixture()
+        fixture_bytes = self.path.read_bytes()
+        revision = "c" * 40
+        source_name = "Qwen3-0.6B-Q8_0.gguf"
+        metadata = {
+            "sha": revision,
+            "siblings": [
+                {"rfilename": ".gitattributes"},
+                {"rfilename": "LICENSE"},
+                {"rfilename": source_name, "lfs": {
+                    "sha256": fixture_digest, "size": len(fixture_bytes),
+                }},
+                {"rfilename": "README.md"},
+                {"rfilename": "params"},
+            ],
+        }
+        metadata_url = "https://huggingface.co/api/models/Qwen/Qwen3-0.6B-GGUF/revision/main?blobs=true"
+        weight_url = f"https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/{revision}/{source_name}"
+        requested = []
+
+        def response(url):
+            requested.append(url)
+            if url == metadata_url:
+                return io.BytesIO(json.dumps(metadata).encode())
+            self.assertEqual(url, weight_url)
+            return io.BytesIO(fixture_bytes)
+
+        root = Path(self.directory.name) / "application"
+        with patch.object(assets, "ROOT", root), patch.object(assets, "request", side_effect=response), patch(
+            "sys.argv", ["prepare_model_assets.py", "--download", "--model", "qwen"]
+        ):
+            self.assertEqual(assets.main(), 0)
+        target = root / "assets/models/llm/qwen3-0.6b-q8_0.gguf"
+        manifest = json.loads((target.parent / "model-integrity.json").read_text())
+        self.assertEqual(requested, [metadata_url, weight_url])
+        self.assertEqual(target.read_bytes(), fixture_bytes)
+        self.assertEqual(manifest, {
+            "fileName": "qwen3-0.6b-q8_0.gguf",
+            "sha256": fixture_digest,
+            "sizeBytes": len(fixture_bytes),
+            "sourceRepository": "Qwen/Qwen3-0.6B-GGUF",
+            "sourceRevision": revision,
+        })
+        self.assertFalse(target.with_suffix(".gguf.download").exists())
+
     def test_missing_quantization_lists_published_files_without_substitution(self):
-        metadata = self.metadata("Qwen3-0.6B-Q8_0.gguf")
-        with self.assertRaisesRegex(ValueError, "Published model files: 'Qwen3-0.6B-Q8_0.gguf'"):
+        metadata = self.metadata("Qwen3-0.6B-Q4_K_M.gguf")
+        with self.assertRaisesRegex(ValueError, "Published model files: 'Qwen3-0.6B-Q4_K_M.gguf'"):
             assets.artifact_from_metadata("qwen", metadata)
 
     def test_ambiguous_artifact_does_not_pick_arbitrary_directory(self):
-        metadata = self.metadata("old/qwen3-0.6b-q4_k_m.gguf", "new/qwen3-0.6b-q4_k_m.gguf")
+        metadata = self.metadata("old/qwen3-0.6b-q8_0.gguf", "new/qwen3-0.6b-q8_0.gguf")
         with self.assertRaisesRegex(ValueError, "found 2"):
             assets.artifact_from_metadata("qwen", metadata)
 
     def test_split_artifact_is_not_renamed_into_a_complete_model(self):
-        metadata = self.metadata("qwen3-0.6b-q4_k_m-00001-of-00002.gguf")
+        metadata = self.metadata("qwen3-0.6b-q8_0-00001-of-00002.gguf")
         with self.assertRaisesRegex(ValueError, "found 0"):
             assets.artifact_from_metadata("qwen", metadata)
 
     def test_metadata_requires_immutable_revision_hash_size_and_safe_path(self):
-        valid = self.metadata("qwen3-0.6b-q4_k_m.gguf")
+        valid = self.metadata("qwen3-0.6b-q8_0.gguf")
         for metadata in (
             {**valid, "sha": "main"},
-            {**valid, "siblings": [{"rfilename": "qwen3-0.6b-q4_k_m.gguf"}]},
-            self.metadata("../qwen3-0.6b-q4_k_m.gguf"),
-            self.metadata("/qwen3-0.6b-q4_k_m.gguf"),
+            {**valid, "siblings": [{"rfilename": "qwen3-0.6b-q8_0.gguf"}]},
+            self.metadata("../qwen3-0.6b-q8_0.gguf"),
+            self.metadata("/qwen3-0.6b-q8_0.gguf"),
         ):
             with self.subTest(metadata=metadata), self.assertRaises(ValueError):
                 assets.artifact_from_metadata("qwen", metadata)
