@@ -17,9 +17,22 @@ weights out of commits; `.gitignore` excludes both formats.
 From the repository root, with Python 3.10+ and internet access:
 
 ```powershell
+python scripts/prepare_model_assets.py --check-sources
 python scripts/prepare_model_assets.py --download
 python scripts/verify_model_hashes.py
 ```
+
+`--check-sources` checks the publisher's filenames, revision, hash and size
+without downloading weights or creating manifests. Exact approved filenames may
+be located inside a repository subfolder; the downloader retains that upstream
+path while installing the canonical local asset name. Multiple matching files
+are rejected rather than choosing an arbitrary one.
+
+If the requested quantization is absent, the error lists published model files.
+Provide that output when reporting the problem. Do not rename another quantization
+or a split-model part into the expected filename, invent an integrity manifest, or
+disable release verification. A missing source artifact needs a reviewed source
+or model update before the release can be built.
 
 The preparation script queries the official model repositories for the exact
 commit revision, LFS SHA-256 and size, then downloads that immutable revision.

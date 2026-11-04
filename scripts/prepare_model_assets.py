@@ -11,10 +11,11 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import struct
 import sys
+import time
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
@@ -55,24 +56,52 @@ def request(url: str):
     return urlopen(Request(url, headers={"User-Agent": "PipSpeak-model-preparation/1"}), timeout=60)
 
 
-def official_artifact(model: str) -> tuple[str, str, int, str]:
+def artifact_from_metadata(model: str, metadata: dict) -> tuple[str, str, int, str]:
+    """Resolve one approved file, preserving its publisher's full repository path.
+
+    A local asset name is not necessarily a root-level Hub filename. Do not
+    substitute another quantization/model or only one shard of a split GGUF.
+    """
     repo, expected_name, _ = MODELS[model]
+    if not isinstance(metadata, dict):
+        raise ValueError("Model metadata must be a JSON object")
+    revision = metadata.get("sha", "")
+    if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{40}", revision):
+        raise ValueError("Official model repository did not return an immutable revision")
+    siblings = metadata.get("siblings")
+    if not isinstance(siblings, list):
+        raise ValueError("Model metadata did not include its repository files")
+    files = [s for s in siblings if isinstance(s, dict) and isinstance(s.get("rfilename"), str)]
+    matches = [s for s in files
+               if PurePosixPath(s["rfilename"]).name.lower() == expected_name.lower()]
+    if len(matches) != 1:
+        candidates = [s["rfilename"] for s in files
+                      if s["rfilename"].lower().endswith((".gguf", ".bin"))]
+        available = ", ".join(repr(name) for name in candidates[:12]) or "none"
+        raise ValueError(
+            f"{repo}@{revision} must contain one unambiguous {expected_name}; "
+            f"found {len(matches)}. Published model files: {available}. "
+            "No different quantization or split-model part has been substituted."
+        )
+    item = matches[0]
+    path = item["rfilename"]
+    if path.startswith("/") or "\\" in path or any(part in ("", ".", "..") for part in path.split("/")):
+        raise ValueError("Upstream model file path is invalid")
+    lfs = item.get("lfs", {})
+    if not isinstance(lfs, dict):
+        raise ValueError("Upstream did not provide LFS metadata")
+    digest, size = lfs.get("sha256", ""), lfs.get("size", 0)
+    if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest) or type(size) is not int or size <= 1024 * 1024:
+        raise ValueError("Upstream did not provide a usable LFS SHA-256 and size")
+    url = f"https://huggingface.co/{repo}/resolve/{revision}/{quote(path, safe='/')}"
+    return url, digest, size, revision
+
+
+def official_artifact(model: str) -> tuple[str, str, int, str]:
+    repo, _, _ = MODELS[model]
     with request(f"https://huggingface.co/api/models/{repo}/revision/main?blobs=true") as response:
         metadata = json.load(response)
-    revision = metadata.get("sha", "")
-    if not re.fullmatch(r"[a-f0-9]{40}", revision):
-        raise ValueError("Official model repository did not return an immutable revision")
-    matches = [s for s in metadata.get("siblings", [])
-               if s.get("rfilename", "").lower() == expected_name.lower()]
-    if len(matches) != 1:
-        raise ValueError(f"Official repository does not contain exactly {expected_name}; inspect upstream before updating")
-    item = matches[0]
-    lfs = item.get("lfs", {})
-    digest, size = lfs.get("sha256", ""), lfs.get("size", 0)
-    if not re.fullmatch(r"[a-f0-9]{64}", digest) or not isinstance(size, int) or size <= 1024 * 1024:
-        raise ValueError("Upstream did not provide a usable LFS SHA-256 and size")
-    url = f"https://huggingface.co/{repo}/resolve/{revision}/{quote(item['rfilename'], safe='/')}"
-    return url, digest, size, revision
+    return artifact_from_metadata(model, metadata)
 
 
 def download(url: str, target: Path, digest: str, size: int, model: str) -> None:
@@ -81,11 +110,16 @@ def download(url: str, target: Path, digest: str, size: int, model: str) -> None
     try:
         with request(url) as source, temporary.open("wb") as output:
             total = 0
+            last_progress = time.monotonic()
+            print(f"Downloading {target.name}: {size / (1024 * 1024):.1f} MiB", flush=True)
             while chunk := source.read(1024 * 1024):
                 total += len(chunk)
                 if total > size:
                     raise ValueError("Download exceeds published artifact size")
                 output.write(chunk)
+                if time.monotonic() - last_progress >= 5 or total == size:
+                    print(f"  {total / size:.0%} ({total / (1024 * 1024):.1f} MiB)", flush=True)
+                    last_progress = time.monotonic()
         verify(temporary, digest, size, model)
         os.replace(temporary, target)
     finally:
@@ -119,7 +153,9 @@ def write_manifest(path: Path, model: str, digest: str, revision: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--download", action="store_true", help="Fetch official weights with published upstream SHA-256 verification")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--download", action="store_true", help="Fetch official weights with published upstream SHA-256 verification")
+    mode.add_argument("--check-sources", action="store_true", help="Resolve filenames, revisions and checksums without downloading model weights")
     parser.add_argument("--model", choices=["all", *MODELS], default="all")
     parser.add_argument("--qwen-sha256", help="Official upstream SHA-256 for an existing local Qwen file")
     parser.add_argument("--whisper-sha256", help="Official upstream SHA-256 for an existing local Whisper file")
@@ -128,9 +164,12 @@ def main() -> int:
     for model in selected:
         repo, name, folder = MODELS[model]
         target = ROOT / "assets" / "models" / folder / name
-        if args.download:
+        if args.download or args.check_sources:
             url, digest, size, revision = official_artifact(model)
             print(f"Preparing {model}: {repo}@{revision}\nSHA-256: {digest}", flush=True)
+            print(f"Source: {url}\nLocal asset: {target.relative_to(ROOT)}", flush=True)
+            if args.check_sources:
+                continue
             if target.is_file():
                 try:
                     verify(target, digest, size, model)
@@ -148,7 +187,10 @@ def main() -> int:
             revision = "explicit-upstream-sha256"
         write_manifest(target, model, digest, revision)
         print(f"Verified {target.relative_to(ROOT)}; wrote model-integrity.json", flush=True)
-    print("Rebuild and reinstall the app to package the verified assets and manifests.")
+    if args.check_sources:
+        print("Sources resolved. No model weights were downloaded or verified locally.")
+    else:
+        print("Rebuild and reinstall the app to package the verified assets and manifests.")
     return 0
 
 

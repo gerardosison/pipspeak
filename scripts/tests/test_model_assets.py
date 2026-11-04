@@ -1,9 +1,11 @@
 import importlib.util
+import io
 import json
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -62,6 +64,60 @@ class ModelPreparationTests(unittest.TestCase):
             assets.request("http://huggingface.co/file")
         with self.assertRaises(ValueError):
             assets.request("https://example.com/model.gguf")
+
+    def metadata(self, *paths):
+        return {
+            "sha": "a" * 40,
+            "siblings": [
+                {"rfilename": path, "lfs": {"sha256": "b" * 64, "size": 2 * 1024 * 1024}}
+                for path in paths
+            ],
+        }
+
+    def test_nested_approved_artifact_preserves_upstream_path_and_revision(self):
+        path = "Q4_K_M/Qwen3-0.6B-Q4_K_M.gguf"
+        metadata = self.metadata(path)
+        with patch.object(assets, "request", return_value=io.BytesIO(json.dumps(metadata).encode())):
+            url, digest, size, revision = assets.official_artifact("qwen")
+        self.assertEqual(url, "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/" + "a" * 40 + "/" + path)
+        self.assertEqual(digest, "b" * 64)
+        self.assertEqual(size, 2 * 1024 * 1024)
+        self.assertEqual(revision, "a" * 40)
+
+    def test_missing_quantization_lists_published_files_without_substitution(self):
+        metadata = self.metadata("Qwen3-0.6B-Q8_0.gguf")
+        with self.assertRaisesRegex(ValueError, "Published model files: 'Qwen3-0.6B-Q8_0.gguf'"):
+            assets.artifact_from_metadata("qwen", metadata)
+
+    def test_ambiguous_artifact_does_not_pick_arbitrary_directory(self):
+        metadata = self.metadata("old/qwen3-0.6b-q4_k_m.gguf", "new/qwen3-0.6b-q4_k_m.gguf")
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            assets.artifact_from_metadata("qwen", metadata)
+
+    def test_split_artifact_is_not_renamed_into_a_complete_model(self):
+        metadata = self.metadata("qwen3-0.6b-q4_k_m-00001-of-00002.gguf")
+        with self.assertRaisesRegex(ValueError, "found 0"):
+            assets.artifact_from_metadata("qwen", metadata)
+
+    def test_metadata_requires_immutable_revision_hash_size_and_safe_path(self):
+        valid = self.metadata("qwen3-0.6b-q4_k_m.gguf")
+        for metadata in (
+            {**valid, "sha": "main"},
+            {**valid, "siblings": [{"rfilename": "qwen3-0.6b-q4_k_m.gguf"}]},
+            self.metadata("../qwen3-0.6b-q4_k_m.gguf"),
+            self.metadata("/qwen3-0.6b-q4_k_m.gguf"),
+        ):
+            with self.subTest(metadata=metadata), self.assertRaises(ValueError):
+                assets.artifact_from_metadata("qwen", metadata)
+
+    def test_failed_download_preserves_existing_model_and_removes_partial(self):
+        digest = self.write_fixture()
+        original = self.path.read_bytes()
+        with patch.object(assets, "request", return_value=io.BytesIO(b"error response")):
+            with self.assertRaises(ValueError):
+                assets.download("https://huggingface.co/model", self.path, digest, len(original), "qwen")
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertFalse(self.path.with_suffix(".gguf.download").exists())
 
 
 if __name__ == "__main__":
