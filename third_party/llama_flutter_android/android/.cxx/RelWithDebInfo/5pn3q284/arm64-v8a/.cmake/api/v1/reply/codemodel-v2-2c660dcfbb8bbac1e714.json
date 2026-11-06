@@ -1,0 +1,211 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-RelWithDebInfo-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.6.0"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						4
+					]
+				},
+				{
+					"build" : "src/main/cpp/llama.cpp",
+					"childIndexes" : 
+					[
+						2,
+						5
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src.main.cpp.llama.cpp-RelWithDebInfo-3a3dc9ea377082ce2891.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "src/main/cpp/llama.cpp"
+				},
+				{
+					"build" : "src/main/cpp/llama.cpp/ggml",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src.main.cpp.llama.cpp.ggml-RelWithDebInfo-4f042cf1a0167fcfd722.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "src/main/cpp/llama.cpp/ggml"
+				},
+				{
+					"build" : "src/main/cpp/llama.cpp/ggml/src",
+					"childIndexes" : 
+					[
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src.main.cpp.llama.cpp.ggml.src-RelWithDebInfo-5f7af2e6f38a8a221f73.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 2,
+					"source" : "src/main/cpp/llama.cpp/ggml/src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				},
+				{
+					"build" : "src/main/cpp/llama.cpp/ggml/src/ggml-cpu",
+					"jsonFile" : "directory-src.main.cpp.llama.cpp.ggml.src.ggml-cpu-RelWithDebInfo-4fb3099b1f5ddc5113fe.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 3,
+					"projectIndex" : 2,
+					"source" : "src/main/cpp/llama.cpp/ggml/src/ggml-cpu"
+				},
+				{
+					"build" : "src/main/cpp/llama.cpp/src",
+					"jsonFile" : "directory-src.main.cpp.llama.cpp.src-RelWithDebInfo-8014f8769e0f2dff7492.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 1,
+					"source" : "src/main/cpp/llama.cpp/src",
+					"targetIndexes" : 
+					[
+						3
+					]
+				}
+			],
+			"name" : "RelWithDebInfo",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "llama_jni",
+					"targetIndexes" : 
+					[
+						4
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1,
+						5
+					],
+					"name" : "llama.cpp",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2,
+						3,
+						4
+					],
+					"name" : "ggml",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 3,
+					"id" : "ggml::@c3576ecaca8316145c0a",
+					"jsonFile" : "target-ggml-RelWithDebInfo-54680606b2070a25c09e.json",
+					"name" : "ggml",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ggml-base::@c3576ecaca8316145c0a",
+					"jsonFile" : "target-ggml-base-RelWithDebInfo-a9ff7f417222432e7fbc.json",
+					"name" : "ggml-base",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ggml-cpu::@c3576ecaca8316145c0a",
+					"jsonFile" : "target-ggml-cpu-RelWithDebInfo-04c4442b2f54cc8eaf40.json",
+					"name" : "ggml-cpu",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "llama::@f18c97d372e01737396d",
+					"jsonFile" : "target-llama-RelWithDebInfo-7c4a5894dbe04479fe05.json",
+					"name" : "llama",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "llama_jni::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-llama_jni-RelWithDebInfo-a330e4c342918538f460.json",
+					"name" : "llama_jni",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/Sison Laptop/Desktop/App_Builder_Hackathon/APP/third_party/llama_flutter_android/android/.cxx/RelWithDebInfo/5pn3q284/arm64-v8a",
+		"source" : "C:/Users/Sison Laptop/Desktop/App_Builder_Hackathon/APP/third_party/llama_flutter_android/android"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

@@ -147,3 +147,11 @@ val verifyLocalAiReleaseAssets = tasks.register("verifyLocalAiReleaseAssets") {
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     dependsOn(verifyLocalAiReleaseAssets)
 }
+
+dependencies {
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+}
+

@@ -1,0 +1,125 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
+
+import '../local/app_database.dart';
+
+class ProfileRepository {
+  ProfileRepository(this.database, this.firestore);
+
+  final AppDatabase database;
+  final FirebaseFirestore firestore;
+
+  Stream<LocalProfile?> watch(String userId) {
+    return (database.select(database.userProfiles)
+          ..where((row) => row.userId.equals(userId)))
+        .watchSingleOrNull();
+  }
+
+  Future<LocalProfile?> read(String userId) {
+    return (database.select(database.userProfiles)
+          ..where((row) => row.userId.equals(userId)))
+        .getSingleOrNull();
+  }
+
+  Future<void> save({
+    required String userId,
+    required String fullName,
+    required String nickname,
+    required String language,
+    required String practicePurpose,
+    bool onboardingComplete = true,
+  }) async {
+    if (userId.isEmpty ||
+        fullName.trim().isEmpty ||
+        nickname.trim().isEmpty) {
+      throw ArgumentError('Name and nickname are required.');
+    }
+
+    await database.into(database.userProfiles).insertOnConflictUpdate(
+          UserProfilesCompanion.insert(
+            userId: userId,
+            fullName: fullName.trim(),
+            nickname: nickname.trim(),
+            language: language,
+            practicePurpose: practicePurpose,
+            onboardingComplete: Value(onboardingComplete),
+            revision: const Uuid().v4(),
+            needsUpload: const Value(true),
+          ),
+        );
+  }
+
+  Future<void> sync(String userId) async {
+    final document = firestore.collection('users').doc(userId);
+    final local = await read(userId);
+
+    if (local != null && local.needsUpload) {
+      await document.set({
+        'profile': {
+          'fullName': local.fullName,
+          'nickname': local.nickname,
+          'language': local.language,
+          'practicePurpose': local.practicePurpose,
+          'onboardingComplete': local.onboardingComplete,
+          'revision': local.revision,
+        },
+        'profileUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // A newer edit must remain pending if it happened during upload.
+      await (database.update(database.userProfiles)
+            ..where(
+              (row) =>
+                  row.userId.equals(userId) &
+                  row.revision.equals(local.revision),
+            ))
+          .write(
+        const UserProfilesCompanion(
+          needsUpload: Value(false),
+        ),
+      );
+    }
+
+    final snapshot = await document.get(
+      const GetOptions(source: Source.server),
+    );
+
+    final data = snapshot.data()?['profile'];
+
+    // Earlier test accounts may not have a profile yet.
+    if (data == null) return;
+
+    if (data is! Map ||
+        data['fullName'] is! String ||
+        data['nickname'] is! String ||
+        data['language'] is! String ||
+        data['practicePurpose'] is! String ||
+        data['onboardingComplete'] is! bool ||
+        data['revision'] is! String) {
+      throw StateError('Invalid cloud profile.');
+    }
+
+    await database.transaction(() async {
+      final current = await read(userId);
+
+      // Keep unsynced local edits instead of replacing them.
+      if (current != null && current.needsUpload) return;
+
+      await database.into(database.userProfiles).insertOnConflictUpdate(
+            UserProfilesCompanion.insert(
+              userId: userId,
+              fullName: data['fullName'] as String,
+              nickname: data['nickname'] as String,
+              language: data['language'] as String,
+              practicePurpose: data['practicePurpose'] as String,
+              onboardingComplete: Value(
+                data['onboardingComplete'] as bool,
+              ),
+              revision: data['revision'] as String,
+              needsUpload: const Value(false),
+            ),
+          );
+    });
+  }
+}

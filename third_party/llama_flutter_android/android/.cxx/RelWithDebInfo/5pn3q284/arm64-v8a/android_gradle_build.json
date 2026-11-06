@@ -1,0 +1,96 @@
+{
+  "buildFiles": [
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\CMakeLists.txt",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\CMakeLists.txt",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\cmake\\build-info.cmake",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\cmake\\common.cmake",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\cmake\\license.cmake",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\cmake\\llama-config.cmake.in",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\ggml\\CMakeLists.txt",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\ggml\\cmake\\common.cmake",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\ggml\\cmake\\ggml-config.cmake.in",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\ggml\\src\\CMakeLists.txt",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\ggml\\src\\ggml-cpu\\CMakeLists.txt",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\src\\main\\cpp\\llama.cpp\\src\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "ggml::@c3576ecaca8316145c0a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml",
+      "output": "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml.so",
+      "runtimeFiles": [
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-cpu.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-base.so"
+      ]
+    },
+    "ggml-base::@c3576ecaca8316145c0a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml-base",
+      "output": "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-base.so",
+      "runtimeFiles": [
+        "C:\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\lib\\clang\\18\\lib\\linux\\aarch64\\libomp.so"
+      ]
+    },
+    "ggml-cpu::@c3576ecaca8316145c0a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "ggml-cpu",
+      "output": "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-cpu.so",
+      "runtimeFiles": [
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-base.so",
+        "C:\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\lib\\clang\\18\\lib\\linux\\aarch64\\libomp.so"
+      ]
+    },
+    "llama::@f18c97d372e01737396d": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "llama",
+      "output": "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libllama.so",
+      "runtimeFiles": [
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-cpu.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-base.so"
+      ]
+    },
+    "llama_jni::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "llama_jni",
+      "output": "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\build\\llama_flutter_android\\intermediates\\cxx\\RelWithDebInfo\\5pn3q284\\obj\\arm64-v8a\\libllama_jni.so",
+      "runtimeFiles": [
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libllama.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-cpu.so",
+        "C:\\Users\\Sison Laptop\\Desktop\\App_Builder_Hackathon\\APP\\third_party\\llama_flutter_android\\android\\.cxx\\RelWithDebInfo\\5pn3q284\\arm64-v8a\\bin\\libggml-base.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "C:\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
+      "cppCompilerExecutable": "C:\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}
